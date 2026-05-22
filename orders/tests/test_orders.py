@@ -8,7 +8,6 @@ from unittest.mock import patch
 import pytest
 
 from orders.models import Order
-from orders.state import InvalidTransitionError
 from products.inventory import InsufficientInventoryError
 from products.models import Product
 

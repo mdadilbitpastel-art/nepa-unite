@@ -6,8 +6,6 @@ from decimal import Decimal
 from io import BytesIO
 from unittest.mock import patch
 
-import pytest
-
 from contracts.models import Contract
 from core.models import Job
 from products.models import Product
@@ -199,8 +197,10 @@ def test_bulk_upload_rejects_csv_with_bad_rows(db, seller_user):
 # GET /api/v1/jobs/{job_id}
 # ---------------------------------------------------------------------------
 def test_owner_can_poll_their_job(db, force_login, seller_user):
-    job = Job.objects.create(kind="x", owner=seller_user, status=Job.Status.SUCCESS,
-                              total=2, succeeded=2)
+    job = Job.objects.create(
+        kind="x", owner=seller_user, status=Job.Status.SUCCESS,
+        total=2, succeeded=2,
+    )
     client = force_login(seller_user)
     response = client.get(f"/api/v1/jobs/{job.pk}/")
     assert response.status_code == 200

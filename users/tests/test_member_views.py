@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from core.models import AuditLog
 from users.models import CustomUser
 

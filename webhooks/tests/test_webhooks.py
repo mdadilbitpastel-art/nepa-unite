@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-import stripe
 
 from orders.models import Order
 from payments.models import Payment

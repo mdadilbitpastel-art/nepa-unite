@@ -6,17 +6,13 @@ mocked at its boundary so these tests run in CI without those services.
 
 from __future__ import annotations
 
-from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import uuid
 
-import pytest
-from django.utils import timezone
 from rest_framework.test import APIClient
 
-from core.models import AuditLog
 from orders.models import Order
 from payments.models import Invoice, Payment
 from products.models import Product
@@ -96,7 +92,6 @@ def test_flow_1_buyer_happy_path(db, monkeypatch, mock_send_email):
     Order.objects.get(pk=order_id).refresh_from_db()
 
     # Walk through to delivered.
-    order = Order.objects.get(pk=order_id)
     for target in ("fulfillment", "shipped", "delivered"):
         response = api.patch(
             f"/api/v1/orders/{order_id}/status/", {"status": target}, format="json"
@@ -202,7 +197,7 @@ def test_flow_3_refund_flow(db, monkeypatch):
 #         on schedule.
 # ---------------------------------------------------------------------------
 def test_flow_4_webhook_delivery_and_retry(db, buyer_user):
-    endpoint = WebhookEndpoint.objects.create(
+    WebhookEndpoint.objects.create(
         owner=buyer_user,
         url="https://buyer.example.com/hook",
         secret="topsecret",

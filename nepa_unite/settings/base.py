@@ -199,6 +199,8 @@ ELASTICSEARCH_DSL = {
     "default": {"hosts": ELASTICSEARCH_URL},
 }
 PRODUCT_SEARCH_INDEX = "products"
+# Don't reach ES on every model save — we reindex explicitly via Celery.
+DJANGO_ELASTICSEARCH_DSL_AUTOSYNC = False
 
 # ---------------------------------------------------------------------------
 # Inventory / low-stock

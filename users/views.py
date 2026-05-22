@@ -99,7 +99,7 @@ class LoginView(APIView):
                 email=serializer.validated_data["email"],
                 password=serializer.validated_data["password"],
             )
-        except auth0_client.Auth0APIError as exc:
+        except auth0_client.Auth0APIError:
             return Response(
                 {"detail": "Invalid credentials"},
                 status=status.HTTP_401_UNAUTHORIZED,

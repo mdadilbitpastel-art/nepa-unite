@@ -72,5 +72,3 @@ def test_create_rejects_duplicate_sku_for_same_tenant(
     second = client.post("/api/v1/products/", payload, format="json")
     assert second.status_code == 400
     assert "sku" in second.json()
-
-

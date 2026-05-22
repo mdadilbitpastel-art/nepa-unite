@@ -10,7 +10,6 @@ import logging
 from typing import Callable
 
 from django.db import transaction
-from django.utils import timezone
 
 from core.tasks import write_audit_log
 from notifications.service import notify

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
@@ -78,10 +77,10 @@ def search_products(
 
         response = s.execute()
         items = [hit.to_dict() | {"id": hit.meta.id} for hit in response]
-        facets = {
-            bucket_name: {b.key: b.doc_count for b in getattr(response.aggregations, bucket_name).buckets}
-            for bucket_name in ("by_category", "by_region", "by_contract_status")
-        }
+        facets = {}
+        for bucket_name in ("by_category", "by_region", "by_contract_status"):
+            buckets = getattr(response.aggregations, bucket_name).buckets
+            facets[bucket_name] = {b.key: b.doc_count for b in buckets}
         return SearchResult(
             items=items,
             total=response.hits.total.value,

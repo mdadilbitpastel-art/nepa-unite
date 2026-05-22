@@ -14,7 +14,6 @@ import time
 import uuid
 
 from django.conf import settings
-from django.core.cache import cache
 from django.db import transaction
 from django.db.models import F
 from django_redis import get_redis_connection
