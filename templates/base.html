@@ -1,269 +1,352 @@
-{% load static %}<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c2340">
   <title>{% block title %}NEPA Unite{% endblock %}</title>
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230c2340'/%3E%3Ccircle cx='12' cy='16' r='6' fill='none' stroke='%23d4a155' stroke-width='2.2'/%3E%3Ccircle cx='20' cy='16' r='6' fill='none' stroke='%23ffffff' stroke-width='2.2'/%3E%3C/svg%3E">
+
   <style>
+    /* ============================================================
+       Design tokens
+       ============================================================ */
+    :root {
+      --bg:                 #f6f7fb;
+      --surface:            #ffffff;
+      --surface-2:          #f1f5f9;
+      --surface-tint:       #f8fafc;
+      --border:             #e5e7eb;
+      --border-strong:      #cbd5e1;
+
+      --text:               #0f172a;
+      --text-muted:         #475569;
+      --text-subtle:        #94a3b8;
+      --text-on-primary:    #ffffff;
+
+      --primary:            #0c2340;
+      --primary-hover:      #1c3559;
+      --primary-soft:       #eef2f8;
+
+      --accent:             #d4a155;
+      --accent-hover:       #b8843a;
+      --accent-soft:        #fbf3e3;
+
+      --success:            #047857;
+      --success-bg:         #d1fae5;
+      --warning:            #b45309;
+      --warning-bg:         #fef3c7;
+      --danger:             #b91c1c;
+      --danger-bg:          #fee2e2;
+      --info:               #1e40af;
+      --info-bg:            #dbeafe;
+
+      --shadow-sm:          0 1px 2px rgba(15, 23, 42, .05);
+      --shadow-md:          0 4px 14px rgba(15, 23, 42, .07);
+      --shadow-lg:          0 16px 40px rgba(15, 23, 42, .10);
+
+      --radius-sm:          6px;
+      --radius-md:          10px;
+      --radius-lg:          14px;
+      --radius-xl:          22px;
+
+      --space-1:            4px;
+      --space-2:            8px;
+      --space-3:            12px;
+      --space-4:            16px;
+      --space-5:            20px;
+      --space-6:            24px;
+      --space-8:            32px;
+      --space-10:           40px;
+      --space-12:           48px;
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Ubuntu, Cantarell, sans-serif;
+    }
+
+    /* ============================================================
+       Base
+       ============================================================ */
     *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
-      background: #f4f6f9;
-      color: #1a1f2c;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    a { color: #2563eb; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .navbar {
-      background: #0f172a;
-      color: white;
-      padding: 14px 28px;
-      display: flex;
-      align-items: center;
-      gap: 24px;
-      box-shadow: 0 2px 6px rgba(0,0,0,.06);
-    }
-    .navbar .brand {
-      color: white;
-      font-weight: 700;
-      font-size: 18px;
-      letter-spacing: .3px;
-    }
-    .navbar .brand:hover { text-decoration: none; }
-    .navbar .nav-links { margin-left: auto; display: flex; gap: 16px; align-items: center; }
-    .navbar .nav-links a, .navbar .nav-links span { color: #cbd5e1; font-size: 14px; }
-    .navbar .nav-links a:hover { color: white; }
-    .navbar .role-badge {
-      background: #1e40af;
-      color: white;
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      text-transform: uppercase;
-      letter-spacing: .5px;
-    }
-    .navbar .logout-form { display: inline; }
-    .navbar .logout-form button {
-      background: transparent;
-      border: 1px solid #475569;
-      color: #cbd5e1;
-      padding: 5px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-    }
-    .navbar .logout-form button:hover { background: #1e293b; color: white; }
-
-    .main { flex: 1; padding: 32px 16px; }
-
-    .auth-card {
-      max-width: 440px;
-      margin: 48px auto;
-      background: white;
-      border-radius: 12px;
-      padding: 32px;
-      box-shadow: 0 6px 20px rgba(0,0,0,.05);
-    }
-    .auth-card h1 {
-      margin: 0 0 6px 0;
-      font-size: 22px;
-    }
-    .auth-card .sub {
-      color: #64748b;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
       font-size: 14px;
-      margin-bottom: 22px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
-    form .field {
-      margin-bottom: 14px;
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { color: var(--primary-hover); text-decoration: underline; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+           background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
+    button { font-family: inherit; }
+    h1, h2, h3, h4 { margin: 0; color: var(--text); }
+
+    /* ============================================================
+       Brand mark (two overlapping rings = "unite")
+       ============================================================ */
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: inherit;
+      font-weight: 700;
+      letter-spacing: .2px;
+      text-decoration: none;
     }
-    form label {
+    .brand-mark:hover { text-decoration: none; }
+    .brand-mark svg { display: block; }
+    .brand-mark .brand-text { font-size: 17px; font-family: var(--font-sans); }
+    .brand-mark .brand-text .brand-text-secondary { color: var(--accent); }
+
+    /* ============================================================
+       Buttons
+       ============================================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn:hover { text-decoration: none; }
+    .btn-primary    { background: var(--primary); color: var(--text-on-primary); }
+    .btn-primary:hover { background: var(--primary-hover); color: var(--text-on-primary); }
+    .btn-accent     { background: var(--accent); color: #1a1208; }
+    .btn-accent:hover { background: var(--accent-hover); color: #1a1208; }
+    .btn-secondary  { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+    .btn-secondary:hover { background: var(--surface-2); color: var(--text); }
+    .btn-ghost      { background: transparent; color: var(--text-muted); }
+    .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+    .btn-danger     { background: var(--danger); color: white; }
+    .btn-danger:hover { background: #991b1b; color: white; }
+    .btn-block      { width: 100%; }
+    .btn-sm         { padding: 6px 12px; font-size: 13px; }
+
+    /* ============================================================
+       Forms
+       ============================================================ */
+    .field { margin-bottom: var(--space-4); }
+    .field label, .form-label {
       display: block;
       font-size: 13px;
       font-weight: 600;
-      color: #334155;
-      margin-bottom: 5px;
+      color: var(--text);
+      margin-bottom: 6px;
     }
-    form input[type="email"],
-    form input[type="text"],
-    form input[type="password"],
-    form select,
-    form textarea {
+    .field .helper {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .field input[type="email"],
+    .field input[type="text"],
+    .field input[type="password"],
+    .field input[type="number"],
+    .field select,
+    .field textarea {
       width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
+      padding: 11px 13px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
       font-size: 14px;
-      background: white;
+      background: var(--surface);
+      color: var(--text);
+      font-family: inherit;
       transition: border-color .15s, box-shadow .15s;
     }
-    form input:focus, form select:focus, form textarea:focus {
+    .field input:focus, .field select:focus, .field textarea:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(12, 35, 64, .12);
     }
-    form .errors {
-      list-style: none;
-      padding: 0;
-      margin: 4px 0 0 0;
-      color: #b91c1c;
-      font-size: 12.5px;
+    .field select {
+      appearance: none;
+      background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 20 20' fill='%23475569'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
     }
-    .btn-primary {
-      width: 100%;
-      padding: 11px;
-      background: #2563eb;
-      color: white;
-      border: 0;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 14px;
-      cursor: pointer;
-      margin-top: 8px;
-    }
-    .btn-primary:hover { background: #1d4ed8; }
-    .btn-secondary {
-      padding: 7px 14px;
-      background: white;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .btn-danger {
-      background: #dc2626;
-      color: white;
-      border: 0;
-      padding: 7px 14px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-    }
-    .btn-danger:hover { background: #b91c1c; }
-    .auth-footer {
-      text-align: center;
-      margin-top: 18px;
-      font-size: 13px;
-      color: #64748b;
-    }
-    .messages { max-width: 880px; margin: 0 auto 24px auto; padding: 0 16px; }
-    .messages .msg {
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin-bottom: 8px;
-      font-size: 14px;
-    }
-    .messages .msg.success { background: #dcfce7; color: #14532d; }
-    .messages .msg.info    { background: #dbeafe; color: #1e3a8a; }
-    .messages .msg.warning { background: #fef3c7; color: #78350f; }
-    .messages .msg.error   { background: #fee2e2; color: #7f1d1d; }
+    .errors { list-style: none; padding: 0; margin: 6px 0 0 0; color: var(--danger); font-size: 12.5px; }
+    .errors li::before { content: "⚠ "; }
 
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
+    /* ============================================================
+       Messages / flash
+       ============================================================ */
+    .messages { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: 8px; }
+    .msg {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
+    .msg.success { background: var(--success-bg); color: #064e3b; border-color: #a7f3d0; }
+    .msg.info    { background: var(--info-bg);    color: #1e3a8a; border-color: #bfdbfe; }
+    .msg.warning { background: var(--warning-bg); color: #78350f; border-color: #fde68a; }
+    .msg.error   { background: var(--danger-bg);  color: #7f1d1d; border-color: #fecaca; }
+
+    /* ============================================================
+       Cards, stats, tables
+       ============================================================ */
     .card {
-      background: white;
-      border-radius: 12px;
-      padding: 22px;
-      box-shadow: 0 4px 14px rgba(0,0,0,.04);
-      margin-bottom: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      box-shadow: var(--shadow-sm);
     }
-    .card h2 {
-      margin: 0 0 14px 0;
-      font-size: 17px;
-      color: #0f172a;
+    .card + .card { margin-top: var(--space-6); }
+    .card h2 { font-size: 16px; margin-bottom: var(--space-4); }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-4);
     }
-    .grid {
+    .card-header h2 { margin: 0; }
+    .card-header .actions { display: flex; gap: 8px; }
+
+    .stat-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
     }
     .stat {
-      background: white;
-      border-radius: 12px;
-      padding: 18px;
-      box-shadow: 0 4px 14px rgba(0,0,0,.04);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      display: flex; align-items: center; gap: 14px;
+      box-shadow: var(--shadow-sm);
     }
-    .stat .label { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
-    .stat .value { font-size: 28px; font-weight: 700; color: #0f172a; margin-top: 6px; }
+    .stat-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--primary-soft); color: var(--primary);
+      flex-shrink: 0;
+    }
+    .stat-icon.accent  { background: var(--accent-soft); color: var(--accent-hover); }
+    .stat-icon.success { background: var(--success-bg); color: var(--success); }
+    .stat-icon.warning { background: var(--warning-bg); color: var(--warning); }
+    .stat .label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+    .stat .value { font-size: 26px; font-weight: 700; color: var(--text); margin-top: 2px; }
+
     table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       font-size: 14px;
     }
-    table th, table td {
-      text-align: left;
-      padding: 9px 10px;
-      border-bottom: 1px solid #e2e8f0;
-    }
     table th {
-      font-size: 12px;
+      text-align: left;
+      font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: .5px;
-      color: #64748b;
-      background: #f8fafc;
+      letter-spacing: .6px;
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 10px 12px;
+      background: var(--surface-tint);
+      border-bottom: 1px solid var(--border);
     }
-    .empty { color: #94a3b8; font-style: italic; padding: 14px; }
+    table th:first-child { border-top-left-radius: var(--radius-md); }
+    table th:last-child  { border-top-right-radius: var(--radius-md); }
+    table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: middle;
+    }
+    table tr:last-child td { border-bottom: 0; }
+    table tr:hover td { background: var(--surface-tint); }
 
+    /* ============================================================
+       Badges / pills
+       ============================================================ */
     .pill {
-      display: inline-block;
-      padding: 2px 9px;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px;
       border-radius: 999px;
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: .4px;
+      letter-spacing: .5px;
+      border: 1px solid transparent;
     }
-    .pill.pending   { background: #fef3c7; color: #92400e; }
-    .pill.active    { background: #dcfce7; color: #166534; }
-    .pill.suspended { background: #fee2e2; color: #991b1b; }
+    .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .65; }
+    .pill.pending     { background: var(--warning-bg); color: var(--warning); }
+    .pill.active      { background: var(--success-bg); color: var(--success); }
+    .pill.suspended   { background: var(--danger-bg);  color: var(--danger); }
+    .pill.draft       { background: var(--surface-2);  color: var(--text-muted); }
+    .pill.confirmed   { background: var(--info-bg);    color: var(--info); }
+    .pill.fulfillment { background: var(--accent-soft); color: var(--accent-hover); }
+    .pill.shipped     { background: var(--info-bg);    color: var(--info); }
+    .pill.delivered   { background: var(--success-bg); color: var(--success); }
+    .pill.closed      { background: var(--surface-2);  color: var(--text-muted); }
+    .pill.cancelled   { background: var(--danger-bg);  color: var(--danger); }
+    .pill.inactive    { background: var(--surface-2);  color: var(--text-muted); }
+    .pill.deleted     { background: var(--danger-bg);  color: var(--danger); }
+    .pill.role-admin  { background: var(--primary-soft); color: var(--primary); }
+    .pill.role-buyer  { background: var(--info-bg);     color: var(--info); }
+    .pill.role-seller { background: var(--accent-soft); color: var(--accent-hover); }
+    .pill.role-auditor{ background: var(--surface-2);   color: var(--text-muted); }
 
-    .product-card {
-      background: white;
-      padding: 14px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    /* ============================================================
+       Empty states
+       ============================================================ */
+    .empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-muted);
     }
-    .product-card .sku { font-size: 11px; color: #64748b; letter-spacing: .5px; text-transform: uppercase; }
-    .product-card .name { font-weight: 600; margin: 4px 0; }
-    .product-card .price { color: #0369a1; font-weight: 700; }
+    .empty .empty-icon {
+      width: 56px; height: 56px;
+      margin: 0 auto 12px auto;
+      border-radius: 14px;
+      background: var(--surface-2);
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--text-subtle);
+    }
+    .empty h3 { font-size: 15px; margin-bottom: 4px; color: var(--text); }
+
+    /* ============================================================
+       Page header (inside app shell)
+       ============================================================ */
+    .page-header {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      margin-bottom: var(--space-6); gap: var(--space-4); flex-wrap: wrap;
+    }
+    .page-header h1 { font-size: 22px; font-weight: 700; }
+    .page-header .subtitle { color: var(--text-muted); margin-top: 4px; font-size: 14px; }
+
+    /* ============================================================
+       Misc utilities
+       ============================================================ */
+    .row { display: flex; gap: var(--space-3); align-items: center; }
+    .row.between { justify-content: space-between; }
+    .muted { color: var(--text-muted); }
+    .text-sm { font-size: 13px; }
+    .text-xs { font-size: 12px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+    @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
   </style>
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
-  {% block navbar %}
-  <nav class="navbar">
-    <a href="{% url 'home' %}" class="brand">NEPA Unite</a>
-    <div class="nav-links">
-      {% if user.is_authenticated %}
-        <span class="role-badge">{{ user.role }}</span>
-        <a href="{% url 'dashboard' %}">Dashboard</a>
-        <a href="/api/docs/">API docs</a>
-        <span>{{ user.email }}</span>
-        <form method="post" action="{% url 'logout' %}" class="logout-form">
-          {% csrf_token %}
-          <button type="submit">Sign out</button>
-        </form>
-      {% else %}
-        <a href="{% url 'login' %}">Sign in</a>
-        <a href="{% url 'signup' %}">Create account</a>
-      {% endif %}
-    </div>
-  </nav>
-  {% endblock %}
-
-  {% if messages %}
-  <div class="messages">
-    {% for message in messages %}
-      <div class="msg {{ message.tags }}">{{ message }}</div>
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  <main class="main">
-    {% block content %}{% endblock %}
-  </main>
+  {% block layout %}{% endblock %}
 </body>
 </html>

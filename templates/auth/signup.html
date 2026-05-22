@@ -1,10 +1,14 @@
-{% extends "base.html" %}
+{% extends "base_auth.html" %}
 {% block title %}Create account · NEPA Unite{% endblock %}
+{% block auth_hero_title %}Join the NEPA Unite network.{% endblock %}
+{% block auth_hero_lede %}
+  List as a seller or shop as a buyer. Every account is reviewed by a
+  platform administrator before going live &mdash; verified members only.
+{% endblock %}
 
-{% block content %}
-<div class="auth-card">
+{% block auth_content %}
   <h1>Create your account</h1>
-  <p class="sub">Buyer or seller — an admin will approve your access.</p>
+  <p class="auth-sub">Pick your role — an admin will approve your access.</p>
 
   <form method="post" novalidate>
     {% csrf_token %}
@@ -15,16 +19,18 @@
       {% if form.email.errors %}<ul class="errors">{% for e in form.email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
     </div>
 
-    <div class="field">
-      <label for="{{ form.password.id_for_label }}">Password</label>
-      {{ form.password }}
-      {% if form.password.errors %}<ul class="errors">{% for e in form.password.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="{{ form.password.id_for_label }}">Password</label>
+        {{ form.password }}
+        {% if form.password.errors %}<ul class="errors">{% for e in form.password.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      </div>
 
-    <div class="field">
-      <label for="{{ form.password_confirm.id_for_label }}">Confirm password</label>
-      {{ form.password_confirm }}
-      {% if form.password_confirm.errors %}<ul class="errors">{% for e in form.password_confirm.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <div class="field">
+        <label for="{{ form.password_confirm.id_for_label }}">Confirm password</label>
+        {{ form.password_confirm }}
+        {% if form.password_confirm.errors %}<ul class="errors">{% for e in form.password_confirm.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      </div>
     </div>
 
     <div class="field">
@@ -33,27 +39,33 @@
       {% if form.business_name.errors %}<ul class="errors">{% for e in form.business_name.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
     </div>
 
-    <div class="field">
-      <label for="{{ form.role.id_for_label }}">I'm joining as a&hellip;</label>
-      {{ form.role }}
-      {% if form.role.errors %}<ul class="errors">{% for e in form.role.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="{{ form.role.id_for_label }}">I'm joining as</label>
+        {{ form.role }}
+        {% if form.role.errors %}<ul class="errors">{% for e in form.role.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      </div>
 
-    <div class="field">
-      <label for="{{ form.vertical_type.id_for_label }}">Industry</label>
-      {{ form.vertical_type }}
-      {% if form.vertical_type.errors %}<ul class="errors">{% for e in form.vertical_type.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      <div class="field">
+        <label for="{{ form.vertical_type.id_for_label }}">Industry</label>
+        {{ form.vertical_type }}
+        {% if form.vertical_type.errors %}<ul class="errors">{% for e in form.vertical_type.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      </div>
     </div>
 
     {% if form.non_field_errors %}
       <ul class="errors">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
     {% endif %}
 
-    <button type="submit" class="btn-primary">Create account</button>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary btn-block">
+        Create account
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>
+      </button>
+    </div>
   </form>
 
-  <p class="auth-footer">
-    Already have an account? <a href="{% url 'login' %}">Sign in</a>
+  <p class="auth-footer-links">
+    Already have an account? <a href="{% url 'login' %}"><strong>Sign in</strong></a>
   </p>
-</div>
 {% endblock %}

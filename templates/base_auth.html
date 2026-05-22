@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+  .auth-shell {
+    min-height: 100%;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+  }
+  @media (max-width: 960px) {
+    .auth-shell { grid-template-columns: 1fr; }
+    .auth-aside { display: none; }
+  }
+
+  /* ============================================================
+     Left panel — brand + tagline + decorative pattern
+     ============================================================ */
+  .auth-aside {
+    position: relative;
+    padding: 56px 56px 40px 56px;
+    color: #fff;
+    background:
+      radial-gradient(1200px 600px at -200px -160px, rgba(212,161,85,.22), transparent 60%),
+      radial-gradient(800px 500px at 110% 110%, rgba(212,161,85,.10), transparent 65%),
+      linear-gradient(180deg, #0c2340 0%, #0a1c33 100%);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .auth-aside::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 38px 38px;
+    mask-image: radial-gradient(900px 700px at 10% 0%, rgba(0,0,0,.9), transparent 75%);
+    pointer-events: none;
+  }
+  .auth-aside .brand-mark { color: #fff; position: relative; }
+  .auth-aside .brand-mark .brand-text { font-size: 18px; }
+
+  .auth-hero { margin-top: auto; position: relative; }
+  .auth-hero .eyebrow {
+    color: var(--accent);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2.2px;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+  .auth-hero h2 {
+    color: #fff;
+    font-size: 36px;
+    line-height: 1.15;
+    font-weight: 700;
+    margin-bottom: 18px;
+    letter-spacing: -.4px;
+  }
+  .auth-hero .lede {
+    color: #cbd5e1;
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 460px;
+  }
+
+  .auth-features {
+    margin-top: 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    position: relative;
+  }
+  .auth-feature {
+    display: flex; gap: 12px; align-items: flex-start;
+    color: #e2e8f0; font-size: 14px;
+  }
+  .auth-feature .icon {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: rgba(212, 161, 85, .14);
+    color: var(--accent);
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .auth-feature strong { color: #fff; font-weight: 600; display: block; margin-bottom: 2px; }
+  .auth-feature span { color: #94a3b8; }
+
+  .auth-footer-aside {
+    margin-top: 40px;
+    padding-top: 22px;
+    border-top: 1px solid rgba(255,255,255,.08);
+    font-size: 12px;
+    color: #94a3b8;
+    position: relative;
+  }
+
+  /* ============================================================
+     Right panel — form card
+     ============================================================ */
+  .auth-main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    background: var(--bg);
+  }
+  .auth-card {
+    width: 100%;
+    max-width: 440px;
+    background: var(--surface);
+    border-radius: var(--radius-xl);
+    padding: 36px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border);
+  }
+  .auth-card .auth-mobile-brand {
+    display: none;
+    margin-bottom: 22px;
+  }
+  @media (max-width: 960px) {
+    .auth-card .auth-mobile-brand { display: flex; }
+    .auth-main { padding: 28px 16px; background: linear-gradient(180deg, #0c2340 0%, #0c2340 130px, var(--bg) 130px); }
+  }
+  .auth-card h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: -.2px;
+  }
+  .auth-card .auth-sub {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 22px;
+  }
+  .auth-footer-links {
+    text-align: center;
+    margin-top: 22px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .auth-footer-links + .auth-footer-links { margin-top: 8px; }
+  .auth-card .form-actions { margin-top: 18px; }
+</style>
+{% endblock %}
+
+{% block layout %}
+<div class="auth-shell">
+  <aside class="auth-aside">
+    <a href="/" class="brand-mark">
+      <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="#ffffff" fill-opacity=".06" stroke="rgba(255,255,255,.12)"/>
+        <circle cx="12" cy="16" r="6" fill="none" stroke="#d4a155" stroke-width="2.2"/>
+        <circle cx="20" cy="16" r="6" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+      </svg>
+      <span class="brand-text">NEPA <span class="brand-text-secondary">Unite</span></span>
+    </a>
+
+    <div class="auth-hero">
+      <div class="eyebrow">Built for Northeastern Pennsylvania</div>
+      <h2>{% block auth_hero_title %}The B2B network for local NEPA businesses.{% endblock %}</h2>
+      <p class="lede">
+        {% block auth_hero_lede %}List your inventory, transact with verified
+        regional buyers, and disburse through Stripe Connect — all in one
+        platform with admin-approved member access.{% endblock %}
+      </p>
+
+      <div class="auth-features">
+        <div class="auth-feature">
+          <span class="icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </span>
+          <div><strong>Admin-verified members</strong><span>Every buyer & seller is reviewed before going live.</span></div>
+        </div>
+        <div class="auth-feature">
+          <span class="icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 11h20"/></svg>
+          </span>
+          <div><strong>Stripe Connect payouts</strong><span>Automatic disbursements with a platform fee.</span></div>
+        </div>
+        <div class="auth-feature">
+          <span class="icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v4H3zM5 7v12a2 2 0 002 2h10a2 2 0 002-2V7"/><path d="M10 11h4"/></svg>
+          </span>
+          <div><strong>Vertical-aware catalogs</strong><span>Dental, legal, dry-cleaning &mdash; product attributes that match your trade.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-footer-aside">
+      © {% now "Y" %} NEPA Unite. Regional commerce, run right.
+    </div>
+  </aside>
+
+  <main class="auth-main">
+    <div class="auth-card">
+      <a href="/" class="brand-mark auth-mobile-brand" style="color: var(--primary);">
+        <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="#0c2340"/>
+          <circle cx="12" cy="16" r="6" fill="none" stroke="#d4a155" stroke-width="2.2"/>
+          <circle cx="20" cy="16" r="6" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+        </svg>
+        <span class="brand-text">NEPA <span class="brand-text-secondary">Unite</span></span>
+      </a>
+
+      {% if messages %}
+      <div class="messages">
+        {% for message in messages %}
+          <div class="msg {{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% block auth_content %}{% endblock %}
+    </div>
+  </main>
+</div>
+{% endblock %}

@@ -1,10 +1,14 @@
-{% extends "base.html" %}
+{% extends "base_auth.html" %}
 {% block title %}Sign in · NEPA Unite{% endblock %}
+{% block auth_hero_title %}Welcome back to NEPA Unite.{% endblock %}
+{% block auth_hero_lede %}
+  Sign in to manage your catalog, fulfill orders, and disburse to your
+  Stripe Connect account &mdash; all from a single workspace.
+{% endblock %}
 
-{% block content %}
-<div class="auth-card">
+{% block auth_content %}
   <h1>Sign in</h1>
-  <p class="sub">Welcome back. Use the credentials you signed up with.</p>
+  <p class="auth-sub">Enter the credentials you registered with.</p>
 
   <form method="post" novalidate>
     {% csrf_token %}
@@ -21,14 +25,16 @@
       {% if form.password.errors %}<ul class="errors">{% for e in form.password.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
     </div>
 
-    <button type="submit" class="btn-primary">Sign in</button>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary btn-block">
+        Sign in
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>
+      </button>
+    </div>
   </form>
 
-  <p class="auth-footer">
-    <a href="{% url 'forgot_password' %}">Forgot your password?</a>
+  <p class="auth-footer-links"><a href="{% url 'forgot_password' %}">Forgot your password?</a></p>
+  <p class="auth-footer-links">
+    New to NEPA Unite? <a href="{% url 'signup' %}"><strong>Create an account</strong></a>
   </p>
-  <p class="auth-footer">
-    New here? <a href="{% url 'signup' %}">Create an account</a>
-  </p>
-</div>
 {% endblock %}
