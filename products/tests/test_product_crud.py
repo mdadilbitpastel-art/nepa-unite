@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from io import BytesIO
 from unittest.mock import patch
+
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from contracts.models import Contract
 from core.models import Job
@@ -137,11 +138,12 @@ def test_bulk_upload_returns_job_id(db, force_login, seller_user, settings):
         "B1,Bulk1,Hi,1.50,5\n"
         "B2,Bulk2,Hi,2.50,5\n"
     ).encode("utf-8")
+    upload = SimpleUploadedFile("products.csv", csv, content_type="text/csv")
     client = force_login(seller_user)
     with patch("products.views.process_bulk_upload.delay") as task:
         response = client.post(
             "/api/v1/products/bulk-upload/",
-            {"file": (BytesIO(csv), "products.csv")},
+            {"file": upload},
             format="multipart",
         )
     assert response.status_code == 202
@@ -153,9 +155,10 @@ def test_bulk_upload_returns_job_id(db, force_login, seller_user, settings):
 
 def test_bulk_upload_rejects_non_csv(db, force_login, seller_user):
     client = force_login(seller_user)
+    upload = SimpleUploadedFile("products.txt", b"hello", content_type="text/plain")
     response = client.post(
         "/api/v1/products/bulk-upload/",
-        {"file": (BytesIO(b"hello"), "products.txt")},
+        {"file": upload},
         format="multipart",
     )
     assert response.status_code == 400

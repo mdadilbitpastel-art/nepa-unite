@@ -1,8 +1,9 @@
 name: Deploy — Staging
 
 on:
-  push:
-    branches: [main]
+  # Manual-only until AWS_DEPLOY_ROLE_ARN + STAGING_ECR_REPOSITORY +
+  # STAGING_ECS_{CLUSTER,SERVICE,TASK_DEFINITION} secrets are configured.
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:

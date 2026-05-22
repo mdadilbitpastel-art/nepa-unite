@@ -10,8 +10,13 @@ from core.tasks import write_audit_log
 from notifications.service import notify_order_status_change
 from orders.models import Order, OrderItem
 from orders.state import assert_transition
-from products.inventory import InsufficientInventoryError, release_inventory, reserve_inventory
+from products.inventory import (
+    InsufficientInventoryError,
+    release_inventory,
+    reserve_inventory,
+)
 from products.models import Product
+from webhooks.tasks import emit_platform_event
 
 
 class OrderCreationError(Exception):
@@ -110,7 +115,6 @@ def transition_order(*, order: Order, target_status: str, actor) -> Order:
     )
 
     # Fire outgoing webhook + notifications.
-    from webhooks.tasks import emit_platform_event
     emit_platform_event.delay(
         event_type=f"order.{target_status}",
         payload={"order_id": str(order.pk), "status": target_status},

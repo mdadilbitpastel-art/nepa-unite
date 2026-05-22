@@ -194,13 +194,13 @@ AWS_S3_INVOICES_BUCKET = env("AWS_S3_INVOICES_BUCKET", default="")
 # ---------------------------------------------------------------------------
 # Elasticsearch / OpenSearch
 # ---------------------------------------------------------------------------
-ELASTICSEARCH_URL = env("OPENSEARCH_URL", default="http://localhost:9200")
+ELASTICSEARCH_URL = env("OPENSEARCH_URL", default="") or "http://localhost:9200"
 ELASTICSEARCH_DSL = {
     "default": {"hosts": ELASTICSEARCH_URL},
 }
 PRODUCT_SEARCH_INDEX = "products"
 # Don't reach ES on every model save — we reindex explicitly via Celery.
-DJANGO_ELASTICSEARCH_DSL_AUTOSYNC = False
+ELASTICSEARCH_DSL_AUTOSYNC = False
 
 # ---------------------------------------------------------------------------
 # Inventory / low-stock
