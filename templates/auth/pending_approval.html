@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Awaiting approval · NEPA Unite{% endblock %}
+
+{% block content %}
+<div class="auth-card" style="text-align: center;">
+  <h1>You're almost in.</h1>
+  <p class="sub">
+    Your account ({{ user.email }}) is awaiting administrator approval.
+    You'll receive an email once you're approved — at which point this page
+    will let you through to the dashboard.
+  </p>
+  <p style="margin-top: 22px;">
+    <span class="pill pending">Pending</span>
+  </p>
+  <p class="auth-footer" style="margin-top: 26px;">
+    Wrong account?
+    <form method="post" action="{% url 'logout' %}" style="display: inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn-secondary" style="margin-left: 4px;">
+        Sign out
+      </button>
+    </form>
+  </p>
+</div>
+{% endblock %}

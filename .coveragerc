@@ -1,0 +1,16 @@
+[run]
+source = .
+omit =
+    */migrations/*
+    */tests/*
+    */__init__.py
+    manage.py
+    nepa_unite/asgi.py
+    nepa_unite/wsgi.py
+    nepa_unite/celery.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if __name__ == .__main__.:

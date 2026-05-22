@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Create account · NEPA Unite{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+  <h1>Create your account</h1>
+  <p class="sub">Buyer or seller — an admin will approve your access.</p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="field">
+      <label for="{{ form.email.id_for_label }}">Business email</label>
+      {{ form.email }}
+      {% if form.email.errors %}<ul class="errors">{% for e in form.email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.password.id_for_label }}">Password</label>
+      {{ form.password }}
+      {% if form.password.errors %}<ul class="errors">{% for e in form.password.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.password_confirm.id_for_label }}">Confirm password</label>
+      {{ form.password_confirm }}
+      {% if form.password_confirm.errors %}<ul class="errors">{% for e in form.password_confirm.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.business_name.id_for_label }}">Business name</label>
+      {{ form.business_name }}
+      {% if form.business_name.errors %}<ul class="errors">{% for e in form.business_name.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.role.id_for_label }}">I'm joining as a&hellip;</label>
+      {{ form.role }}
+      {% if form.role.errors %}<ul class="errors">{% for e in form.role.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.vertical_type.id_for_label }}">Industry</label>
+      {{ form.vertical_type }}
+      {% if form.vertical_type.errors %}<ul class="errors">{% for e in form.vertical_type.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+
+    {% if form.non_field_errors %}
+      <ul class="errors">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    <button type="submit" class="btn-primary">Create account</button>
+  </form>
+
+  <p class="auth-footer">
+    Already have an account? <a href="{% url 'login' %}">Sign in</a>
+  </p>
+</div>
+{% endblock %}

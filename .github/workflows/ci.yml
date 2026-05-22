@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nepa
+          POSTGRES_PASSWORD: nepa
+          POSTGRES_DB: nepa_unite
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U nepa"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DJANGO_SETTINGS_MODULE: nepa_unite.settings.development
+      DJANGO_SECRET_KEY: ci-secret
+      DJANGO_DEBUG: "False"
+      DATABASE_URL: postgres://nepa:nepa@localhost:5432/nepa_unite
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      AUTH0_DOMAIN: test.auth0.com
+      AUTH0_AUDIENCE: https://api.nepaunite.test
+      AUTH0_ISSUER: https://test.auth0.com/
+      AUTH0_ALGORITHMS: HS256
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint with flake8
+        run: flake8 .
+
+      - name: Security lint with bandit
+        run: bandit -r . -lll -ii --exclude tests,migrations,staticfiles,.venv
+
+      - name: Run migrations
+        run: python manage.py migrate --no-input
+
+      - name: Run pytest with coverage
+        run: pytest
+
+      - name: Enforce coverage threshold
+        run: |
+          coverage report --fail-under=80

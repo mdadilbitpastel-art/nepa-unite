@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · NEPA Unite{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1 style="margin: 0 0 18px 0; font-size: 24px;">
+    Welcome back, {{ user.email }}
+  </h1>
+
+  {# ───────────────────────── BUYER ───────────────────────── #}
+  {% if role == "buyer" %}
+    <div class="card">
+      <h2>Your recent orders</h2>
+      {% if recent_orders %}
+        <table>
+          <thead><tr><th>Order</th><th>Status</th><th>Total</th><th>Placed</th></tr></thead>
+          <tbody>
+            {% for o in recent_orders %}
+              <tr>
+                <td><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></td>
+                <td><span class="pill {{ o.status }}">{{ o.status }}</span></td>
+                <td>${{ o.total_amount }}</td>
+                <td>{{ o.created_at|date:"M j, Y" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No orders yet. Browse the catalog below to get started.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Recently listed products</h2>
+      {% if products_preview %}
+        <div class="grid">
+          {% for p in products_preview %}
+            <div class="product-card">
+              <div class="sku">{{ p.sku }}</div>
+              <div class="name">{{ p.name }}</div>
+              <div class="price">${{ p.price }}</div>
+              <div style="font-size: 12px; color: #64748b; margin-top: 4px;">
+                {{ p.inventory_count }} in stock
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty">No products in the catalog yet.</p>
+      {% endif %}
+    </div>
+
+  {# ───────────────────────── SELLER ───────────────────────── #}
+  {% elif role == "seller" %}
+    <div class="card">
+      <h2>Your products</h2>
+      {% if my_products %}
+        <table>
+          <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Inventory</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for p in my_products %}
+              <tr>
+                <td><code>{{ p.sku }}</code></td>
+                <td>{{ p.name }}</td>
+                <td>${{ p.price }}</td>
+                <td>{{ p.inventory_count }}</td>
+                <td><span class="pill {{ p.status }}">{{ p.status }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No products listed yet. Use <code>POST /api/v1/products/</code> via <a href="/api/docs/">the API docs</a> to add one.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Orders containing your products</h2>
+      {% if my_orders %}
+        <table>
+          <thead><tr><th>Order</th><th>Buyer</th><th>Status</th><th>Total</th><th>Placed</th></tr></thead>
+          <tbody>
+            {% for o in my_orders %}
+              <tr>
+                <td><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></td>
+                <td>{{ o.buyer.email }}</td>
+                <td><span class="pill {{ o.status }}">{{ o.status }}</span></td>
+                <td>${{ o.total_amount }}</td>
+                <td>{{ o.created_at|date:"M j, Y" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No orders yet.</p>
+      {% endif %}
+    </div>
+
+  {# ───────────────────────── ADMIN ───────────────────────── #}
+  {% elif role == "admin" %}
+    <div class="grid" style="margin-bottom: 24px;">
+      <div class="stat"><div class="label">Total users</div><div class="value">{{ total_users }}</div></div>
+      <div class="stat"><div class="label">Total products</div><div class="value">{{ total_products }}</div></div>
+      <div class="stat"><div class="label">Total orders</div><div class="value">{{ total_orders }}</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Pending member approvals</h2>
+      {% if pending_members %}
+        <table>
+          <thead><tr><th>Email</th><th>Role</th><th>Business</th><th>Requested</th><th></th></tr></thead>
+          <tbody>
+            {% for m in pending_members %}
+              <tr>
+                <td>{{ m.email }}</td>
+                <td>{{ m.role }}</td>
+                <td>{{ m.tenant.name|default:"—" }}</td>
+                <td>{{ m.created_at|date:"M j, Y H:i" }}</td>
+                <td>
+                  <form method="post" action="{% url 'admin_approve_member' m.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-secondary">Approve</button>
+                  </form>
+                  <form method="post" action="{% url 'admin_suspend_member' m.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-danger">Suspend</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No pending approvals — you're all caught up.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Recent orders (all tenants)</h2>
+      {% if recent_orders %}
+        <table>
+          <thead><tr><th>Order</th><th>Buyer</th><th>Tenant</th><th>Status</th><th>Total</th></tr></thead>
+          <tbody>
+            {% for o in recent_orders %}
+              <tr>
+                <td><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></td>
+                <td>{{ o.buyer.email }}</td>
+                <td>{{ o.tenant.name|default:"—" }}</td>
+                <td><span class="pill {{ o.status }}">{{ o.status }}</span></td>
+                <td>${{ o.total_amount }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No orders yet.</p>
+      {% endif %}
+    </div>
+
+  {# ───────────────────────── AUDITOR ───────────────────────── #}
+  {% elif role == "auditor" %}
+    <div class="card">
+      <h2>Recent audit events</h2>
+      {% if audit_events %}
+        <table>
+          <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th></tr></thead>
+          <tbody>
+            {% for a in audit_events %}
+              <tr>
+                <td>{{ a.created_at|date:"M j, Y H:i" }}</td>
+                <td>{{ a.actor.email|default:"system" }}</td>
+                <td><code>{{ a.action }}</code></td>
+                <td>{{ a.entity_type }} <code>{{ a.entity_id|stringformat:"s"|slice:":8" }}…</code></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No audit events yet.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

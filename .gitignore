@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Django
+*.log
+db.sqlite3
+media/
+staticfiles/
+
+# Coverage / pytest
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Docker
+.docker/

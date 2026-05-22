@@ -1,0 +1,3 @@
+[bandit]
+exclude = /tests,/migrations,/.venv,/venv,/staticfiles
+skips = B101
