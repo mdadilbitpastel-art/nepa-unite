@@ -183,6 +183,11 @@ STRIPE_ONBOARDING_REFRESH_URL = env(
     "STRIPE_ONBOARDING_REFRESH_URL", default="https://nepaunite.local/onboarding/refresh"
 )
 
+# Feature flag: when False, seller listings are NOT gated on Stripe Connect
+# onboarding (no API 403, no banner, no locked button, no onboarding email).
+# Flip to True once a real Stripe Connect account is wired up in the env.
+STRIPE_GATE_ENABLED = env.bool("STRIPE_GATE_ENABLED", default=False)
+
 # ---------------------------------------------------------------------------
 # AWS / S3
 # ---------------------------------------------------------------------------
@@ -241,6 +246,15 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# User uploads (product images, etc.). DEFAULT_FILE_STORAGE governs where
+# the bytes live: local filesystem in dev, Cloudinary in prod. Swap by
+# installing django-cloudinary-storage and setting:
+#     DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+#     CLOUDINARY_URL=cloudinary://api_key:api_secret@cloud_name
+# Code that reads `instance.primary_image.url` keeps working unchanged.
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

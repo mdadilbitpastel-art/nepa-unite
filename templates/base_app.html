@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block extra_head %}
 <style>
@@ -126,6 +127,87 @@
     font-size: 12.5px;
     cursor: pointer;
   }
+
+  .profile-bar {
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 0 16px 0;margin-bottom:20px;
+    border-bottom:1px solid var(--border);
+  }
+  .profile-bar-title {
+    font-size:24px;font-weight:700;color:var(--text);
+    line-height:1.2;
+  }
+  .profile-bar-right {
+    display:flex;align-items:center;gap:14px;
+  }
+  .profile-bar-meta {
+    text-align:right;line-height:1.3;
+  }
+  .profile-bar-name {
+    font-size:13px;font-weight:600;color:var(--text);
+  }
+  .profile-bar-role {
+    font-size:11px;color:var(--text-muted);
+  }
+  .profile-dropdown-wrap { position:relative; }
+  .profile-trigger {
+    width:36px;height:36px;border-radius:50%;
+    background:var(--primary);
+    color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:14px;cursor:pointer;text-transform:uppercase;
+    transition:box-shadow .15s;
+  }
+  .profile-trigger:hover { box-shadow:0 0 0 3px rgba(12,35,64,.15); }
+  .profile-dropdown-wrap:hover .profile-dropdown,
+  .profile-dropdown-wrap:focus-within .profile-dropdown { opacity:1;visibility:visible;transform:translateY(0); }
+  .profile-dropdown {
+    position:absolute;top:calc(100% + 8px);right:0;z-index:100;
+    min-width:240px;padding:0;
+    background:var(--primary);border:1px solid rgba(255,255,255,.1);
+    border-radius:var(--radius-lg,10px);box-shadow:0 8px 24px rgba(0,0,0,.3);
+    opacity:0;visibility:hidden;transform:translateY(-6px);
+    transition:opacity .15s,visibility .15s,transform .15s;
+  }
+  .profile-dropdown-header {
+    padding:20px 18px 16px;
+    display:flex;align-items:center;gap:12px;
+  }
+  .profile-dropdown-avatar {
+    width:42px;height:42px;border-radius:50%;flex-shrink:0;
+    background:var(--accent);color:#1a1208;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:16px;text-transform:uppercase;
+  }
+  .profile-dropdown-info { min-width:0;flex:1; }
+  .profile-dropdown-business {
+    font-size:14px;font-weight:700;color:#fff;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .profile-dropdown-email {
+    font-size:12px;color:#94a3b8;margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .profile-dropdown-badge {
+    display:inline-block;
+    padding:3px 10px;border-radius:999px;
+    font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  }
+  .profile-dropdown-badge.role-seller { background:var(--accent-soft);color:var(--accent-hover); }
+  .profile-dropdown-badge.role-admin { background:var(--primary-soft);color:var(--primary); }
+  .profile-dropdown-badge.role-auditor { background:#ede9fe;color:#6d28d9; }
+  .profile-dropdown-badge.role-buyer { background:#ecfdf5;color:#047857; }
+  .profile-dropdown-divider { height:1px;background:rgba(255,255,255,.08);margin:0; }
+  .profile-dropdown-links { padding:6px 0; }
+  .profile-dropdown-link {
+    display:flex;align-items:center;gap:10px;width:100%;
+    padding:10px 18px;background:none;border:none;
+    font-size:13px;font-weight:500;color:#cbd5e1;
+    cursor:pointer;font-family:inherit;text-decoration:none;
+    transition:background-color .12s,color .12s;
+  }
+  .profile-dropdown-link:hover { background:rgba(255,255,255,.06);color:#fff;text-decoration:none; }
+  .profile-dropdown-link.danger:hover { color:#f87171; }
 </style>
 {% endblock %}
 
@@ -149,29 +231,23 @@
         Dashboard
       </a>
       {% if user.role == 'admin' %}
-        <a href="{% url 'dashboard' %}" class="nav-item">
+        <a href="{% url 'admin_members' %}" class="nav-item {% if request.resolver_match.url_name == 'admin_members' %}active{% endif %}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
           Members
         </a>
       {% endif %}
       {% if user.role == 'seller' %}
-        <a href="{% url 'dashboard' %}" class="nav-item">
+        <a href="{% url 'seller_products' %}" class="nav-item {% if request.resolver_match.url_name == 'seller_products' %}active{% endif %}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 17l8 4 8-4"/></svg>
           My products
         </a>
       {% endif %}
-      {% if user.role == 'buyer' %}
-        <a href="{% url 'dashboard' %}" class="nav-item">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          Browse catalog
-        </a>
-      {% endif %}
-      <a href="{% url 'dashboard' %}" class="nav-item">
+      <a href="{% url 'orders' %}" class="nav-item {% if request.resolver_match.url_name == 'orders' %}active{% endif %}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         Orders
       </a>
       {% if user.role == 'auditor' or user.role == 'admin' %}
-        <a href="{% url 'dashboard' %}" class="nav-item">
+        <a href="{% url 'audit_log' %}" class="nav-item {% if request.resolver_match.url_name == 'audit_log' %}active{% endif %}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
           Audit log
         </a>
@@ -180,11 +256,11 @@
 
     <div class="nav-section">
       <div class="section-label">Developer</div>
-      <a href="/api/docs/" class="nav-item">
+      <a href="{% url 'api_reference' %}" class="nav-item {% if request.resolver_match.url_name == 'api_reference' %}active{% endif %}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         API docs
       </a>
-      <a href="/api/health/" class="nav-item">
+      <a href="{% url 'system_health' %}" class="nav-item {% if request.resolver_match.url_name == 'system_health' %}active{% endif %}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         Health
       </a>
@@ -224,6 +300,39 @@
     </div>
 
     <main class="app-main">
+      <div class="profile-bar">
+        <div class="profile-bar-title">{% block header_title %}Dashboard{% endblock %}</div>
+        <div class="profile-bar-right">
+          <div class="profile-bar-meta">
+            <div class="profile-bar-name">{{ user.first_name|default:user.email }}</div>
+            <div class="profile-bar-role">{{ user.get_role_display|default:user.role }}{% if user.tenant %} &middot; {{ user.tenant.name }}{% endif %}</div>
+          </div>
+          <div class="profile-dropdown-wrap">
+            <div class="profile-trigger">{{ user.email|slice:":1" }}</div>
+            <div class="profile-dropdown">
+              <div class="profile-dropdown-header">
+                <div class="profile-dropdown-avatar">{{ user.email|slice:":1" }}</div>
+                <div class="profile-dropdown-info">
+                  <div class="profile-dropdown-business">{{ user.tenant.name|default:"NEPA Unite" }}</div>
+                  <div class="profile-dropdown-email">{{ user.email }}</div>
+                </div>
+              </div>
+              <div class="profile-dropdown-divider"></div>
+              <div class="profile-dropdown-links" style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;">
+                <div class="profile-dropdown-badge role-{{ user.role }}">{{ user.get_role_display|default:user.role }}</div>
+                <form method="post" action="{% url 'logout' %}" style="margin:0;">
+                  {% csrf_token %}
+                  <button type="submit" class="profile-dropdown-link danger" style="padding:6px 12px;width:auto;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {% if messages %}
       <div class="messages">
         {% for message in messages %}
@@ -236,4 +345,9 @@
     </main>
   </div>
 </div>
+
+<script src="{% static 'js/auto_search.js' %}" defer></script>
+<script src="{% static 'js/confirms.js' %}" defer></script>
+<script src="{% static 'js/image_preview.js' %}" defer></script>
+<script src="{% static 'js/image_fallback.js' %}" defer></script>
 {% endblock %}

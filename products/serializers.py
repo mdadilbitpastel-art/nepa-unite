@@ -9,15 +9,26 @@ from products.models import Product, ProductImage
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    primary_image_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
         fields = (
             "id", "tenant", "seller", "sku", "name", "description",
             "price", "attributes", "inventory_count", "status",
+            "primary_image_url",
             "created_at", "updated_at",
         )
         read_only_fields = ("id", "tenant", "seller", "status",
+                            "primary_image_url",
                             "created_at", "updated_at")
+
+    def get_primary_image_url(self, obj) -> str | None:
+        if not obj.primary_image:
+            return None
+        request = self.context.get("request")
+        url = obj.primary_image.url
+        return request.build_absolute_uri(url) if request else url
 
     def validate_price(self, value: Decimal) -> Decimal:
         if value <= 0:
@@ -64,14 +75,23 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
 class ProductDetailSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
+    primary_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = (
             "id", "tenant", "seller", "sku", "name", "description",
-            "price", "attributes", "inventory_count", "status", "images",
+            "price", "attributes", "inventory_count", "status",
+            "primary_image_url", "images",
             "created_at", "updated_at",
         )
+
+    def get_primary_image_url(self, obj) -> str | None:
+        if not obj.primary_image:
+            return None
+        request = self.context.get("request")
+        url = obj.primary_image.url
+        return request.build_absolute_uri(url) if request else url
 
 
 class BulkUploadSerializer(serializers.Serializer):

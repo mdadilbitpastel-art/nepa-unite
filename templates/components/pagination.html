@@ -1,0 +1,45 @@
+{% if page and page.paginator.count %}
+<nav class="pagination" aria-label="Pagination">
+  <span class="pagination-summary">
+    Showing <strong>{{ page.start_index }}</strong>–<strong>{{ page.end_index }}</strong>
+    of <strong>{{ page.paginator.count }}</strong>
+  </span>
+
+  {% if page.paginator.num_pages > 1 %}
+  <div class="pagination-controls">
+    {% if page.has_previous %}
+      <a href="?{% if qs_prefix %}{{ qs_prefix }}&{% endif %}page={{ page.previous_page_number }}"
+         class="page-btn" aria-label="Previous page" rel="prev">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </a>
+    {% else %}
+      <span class="page-btn disabled" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </span>
+    {% endif %}
+
+    {% for num in elided_range %}
+      {% if num == page.paginator.ELLIPSIS %}
+        <span class="page-ellipsis" aria-hidden="true">…</span>
+      {% elif num == page.number %}
+        <span class="page-btn current" aria-current="page">{{ num }}</span>
+      {% else %}
+        <a href="?{% if qs_prefix %}{{ qs_prefix }}&{% endif %}page={{ num }}"
+           class="page-btn" aria-label="Go to page {{ num }}">{{ num }}</a>
+      {% endif %}
+    {% endfor %}
+
+    {% if page.has_next %}
+      <a href="?{% if qs_prefix %}{{ qs_prefix }}&{% endif %}page={{ page.next_page_number }}"
+         class="page-btn" aria-label="Next page" rel="next">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>
+    {% else %}
+      <span class="page-btn disabled" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </span>
+    {% endif %}
+  </div>
+  {% endif %}
+</nav>
+{% endif %}

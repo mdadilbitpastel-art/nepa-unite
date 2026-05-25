@@ -35,6 +35,22 @@ def send_approval_email(user_email: str) -> None:
 
 
 @shared_task
+def send_seller_onboarding_email(user_email: str) -> None:
+    send_mail(
+        subject="Finish setting up your NEPA Unite seller account",
+        message=(
+            "Your seller account is approved. Before you can list products and "
+            "receive payouts, complete Stripe Connect onboarding from your "
+            "dashboard — look for the 'Connect Stripe' banner on the "
+            "My products page."
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user_email],
+        fail_silently=False,
+    )
+
+
+@shared_task
 def send_suspension_email(user_email: str) -> None:
     send_mail(
         subject="Your NEPA Unite account has been suspended",

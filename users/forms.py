@@ -29,12 +29,14 @@ class SignupForm(forms.Form):
         max_length=255,
         widget=forms.TextInput(attrs={"placeholder": "Your business"}),
     )
+    # BE signup is staff-only — buyers register via the storefront frontend
+    # (JSON API). Admin/auditor accounts are provisioned out-of-band.
     role = forms.ChoiceField(
         choices=[
-            (CustomUser.Role.BUYER, "Buyer — I purchase from member businesses"),
             (CustomUser.Role.SELLER, "Seller — I list products for sale"),
         ],
         widget=forms.Select(),
+        initial=CustomUser.Role.SELLER,
     )
     vertical_type = forms.ChoiceField(
         choices=WorkflowTemplate.Vertical.choices,

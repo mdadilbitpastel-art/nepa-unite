@@ -1,4 +1,7 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 from django.urls import include, path
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -29,3 +32,10 @@ urlpatterns = [
     # HTML UI (dev-mode auth, sessions)
     path("", include("users.urls_html")),
 ]
+
+# Serve static + uploaded media in dev. In prod a CDN / nginx / WhiteNoise
+# fronts these — gunicorn doesn't serve them on its own, and runserver's
+# autoresolve only triggers under manage.py runserver.
+if settings.DEBUG:
+    urlpatterns += staticfiles_urlpatterns()
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

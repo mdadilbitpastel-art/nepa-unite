@@ -1,0 +1,319 @@
+{% extends "base_app.html" %}
+{% block title %}My products · NEPA Unite{% endblock %}
+{% block header_title %}My Products{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+  .filter-bar {
+    display: flex; align-items: center; gap: var(--space-3);
+    flex-wrap: wrap; margin-bottom: var(--space-4);
+  }
+  .filter-bar .chips { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .filter-bar .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 600;
+    background: var(--surface); border: 1px solid var(--border-strong);
+    color: var(--text-muted); text-decoration: none;
+    transition: background-color .12s, color .12s, border-color .12s;
+  }
+  .filter-bar .chip:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+  .filter-bar .chip.active { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); }
+  .filter-bar .chip .count {
+    background: rgba(15, 23, 42, .08); padding: 1px 7px;
+    border-radius: 999px; font-size: 11px; font-weight: 700;
+  }
+  .filter-bar .chip.active .count { background: rgba(255,255,255,.18); }
+  .filter-bar form.inline-filters {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-left: auto; flex-wrap: wrap;
+  }
+  .filter-bar input[type="search"] {
+    padding: 8px 12px; border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md); background: var(--surface-tint);
+    color: var(--text); font-size: 13px; font-family: inherit;
+    min-width: 220px;
+    transition: background-color .15s, border-color .15s, box-shadow .15s;
+  }
+  .filter-bar input[type="search"]:focus {
+    outline: none; background: var(--surface); border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(12, 35, 64, .12);
+  }
+  .low-stock { color: var(--warning); font-weight: 600; }
+
+  .row-actions {
+    display: inline-flex; gap: 6px; justify-content: flex-end;
+  }
+  .row-actions form { display: inline; margin: 0; }
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    background: var(--surface); color: var(--text-muted);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px; cursor: pointer;
+    text-decoration: none;
+    transition: background-color .12s, color .12s, border-color .12s;
+  }
+  .icon-btn:hover { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); text-decoration: none; }
+  .icon-btn.danger:hover { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
+  .icon-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .product-cell { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  /* Thumb wrapper holds the placeholder SVG with an optional <img> overlay.
+     If the image fails to load, image_fallback.js removes the <img> and the
+     placeholder shows — broken-image glyph is never visible. */
+  .product-thumb-wrap {
+    position: relative;
+    width: 56px; height: 56px; border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-subtle);
+    flex-shrink: 0; overflow: hidden;
+  }
+  .product-thumb-wrap .placeholder-svg {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .product-thumb-wrap img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    background: var(--surface-2);
+    display: block;
+  }
+  .product-info {
+    display: flex; flex-direction: column;
+    min-width: 0; gap: 2px;
+    line-height: 1.25;
+  }
+  .product-info .name {
+    font-weight: 600; color: var(--text);
+    font-size: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .product-info .sku {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+    color: var(--text-subtle);
+    letter-spacing: .3px;
+  }
+  /* Slightly roomier rows so the 56px thumb doesn't crowd the cells */
+  table td.product-td { padding-top: 14px; padding-bottom: 14px; }
+
+  .stripe-banner {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 22px; margin-bottom: var(--space-6);
+    background: var(--warning-bg); color: #78350f;
+    border: 1px solid #fde68a; border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+  .stripe-banner .stripe-icon {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: rgba(180, 83, 9, .14); color: var(--warning);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .stripe-banner h3 {
+    color: inherit; font-size: 15px; margin: 0 0 2px 0;
+  }
+  .stripe-banner p {
+    margin: 0; font-size: 13px; opacity: .88;
+    line-height: 1.45;
+  }
+  .stripe-banner form { margin-left: auto; }
+  .stripe-banner .btn-warning {
+    background: var(--warning); color: #fff;
+    border: 1px solid var(--warning);
+  }
+  .stripe-banner .btn-warning:hover { background: #92400e; border-color: #92400e; color: #fff; }
+
+  .btn-disabled {
+    background: var(--surface-2); color: var(--text-subtle);
+    border: 1px solid var(--border); cursor: not-allowed;
+  }
+  .btn-disabled:hover { background: var(--surface-2); color: var(--text-subtle); }
+</style>
+{% endblock %}
+
+{% block app_content %}
+<div style="display:flex;justify-content:flex-end;margin-bottom:var(--space-4);">
+  {% if stripe_onboarding_required %}
+    <span class="btn btn-disabled btn-sm" title="Complete Stripe onboarding before listing products">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      Add product
+    </span>
+  {% else %}
+    <a href="{% url 'seller_product_create' %}" class="btn btn-primary btn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      Add product
+    </a>
+  {% endif %}
+</div>
+
+{% if stripe_onboarding_required %}
+  <div class="stripe-banner">
+    <div class="stripe-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 11h20"/></svg>
+    </div>
+    <div>
+      <h3>Connect Stripe to start selling</h3>
+      <p>
+        Your seller account is approved, but you can't list products or receive
+        payouts until you finish Stripe Connect onboarding (KYC + bank details).
+        It takes about 3 minutes.
+      </p>
+    </div>
+    <form method="post" action="{% url 'seller_connect_stripe' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-warning btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Connect Stripe
+      </button>
+    </form>
+  </div>
+{% endif %}
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/></svg>
+    </div>
+    <div><div class="label">Total listings</div><div class="value">{{ stats.total }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon success">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    </div>
+    <div><div class="label">Active</div><div class="value">{{ stats.active }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div><div class="label">Inactive</div><div class="value">{{ stats.inactive }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon warning">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div><div class="label">Low stock (&lt; 5)</div><div class="value">{{ stats.low_stock }}</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="filter-bar">
+    <div class="chips">
+      <a href="?{% if q %}q={{ q }}{% endif %}" class="chip {% if not status_filter %}active{% endif %}">
+        All <span class="count">{{ stats.total }}</span>
+      </a>
+      <a href="?status=active{% if q %}&q={{ q }}{% endif %}" class="chip {% if status_filter == 'active' %}active{% endif %}">
+        Active <span class="count">{{ stats.active }}</span>
+      </a>
+      <a href="?status=inactive{% if q %}&q={{ q }}{% endif %}" class="chip {% if status_filter == 'inactive' %}active{% endif %}">
+        Inactive <span class="count">{{ stats.inactive }}</span>
+      </a>
+      <a href="?status=low_stock{% if q %}&q={{ q }}{% endif %}" class="chip {% if status_filter == 'low_stock' %}active{% endif %}">
+        Low stock <span class="count">{{ stats.low_stock }}</span>
+      </a>
+    </div>
+    <form method="get" class="inline-filters auto-search-form">
+      {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+      <input type="search" name="q" value="{{ q }}" placeholder="Search by name or SKU…" autocomplete="off">
+    </form>
+  </div>
+
+  {% if products %}
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          {% if role == 'admin' %}<th>Seller</th>{% endif %}
+          <th>Price</th>
+          <th>Inventory</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th style="text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+          <tr>
+            <td class="product-td">
+              <div class="product-cell">
+                <span class="product-thumb-wrap">
+                  <span class="placeholder-svg" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+                  </span>
+                  {% if p.primary_image %}
+                    <img src="{{ p.primary_image.url }}" alt="" data-fallback>
+                  {% endif %}
+                </span>
+                <span class="product-info">
+                  <span class="name" title="{{ p.name }}">{{ p.name }}</span>
+                  <span class="sku">{{ p.sku }}</span>
+                </span>
+              </div>
+            </td>
+            {% if role == 'admin' %}<td class="muted">{{ p.seller.email }}</td>{% endif %}
+            <td><strong>${{ p.price }}</strong></td>
+            <td class="{% if p.inventory_count < 5 %}low-stock{% endif %}">{{ p.inventory_count }}</td>
+            <td><span class="pill {{ p.status }}">{{ p.status }}</span></td>
+            <td class="muted">{{ p.created_at|date:"M j, Y" }}</td>
+            <td style="text-align: right;">
+              <div class="row-actions">
+                {% if p.status == 'deleted' %}
+                  <span class="muted text-xs">—</span>
+                {% else %}
+                  <a href="{% url 'seller_product_edit' p.id %}" class="icon-btn" title="Edit product" aria-label="Edit">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                  </a>
+                  <form method="post" action="{% url 'seller_product_toggle_status' p.id %}">
+                    {% csrf_token %}
+                    {% if p.status == 'active' %}
+                      <button type="submit" class="icon-btn" title="Mark inactive" aria-label="Mark inactive">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      </button>
+                    {% else %}
+                      <button type="submit" class="icon-btn" title="Mark active" aria-label="Mark active">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                    {% endif %}
+                  </form>
+                  <form method="post" action="{% url 'seller_product_delete' p.id %}"
+                        data-confirm="Delete {{ p.sku|escapejs }} — {{ p.name|escapejs }}? This soft-deletes the listing.">
+                    {% csrf_token %}
+                    <button type="submit" class="icon-btn danger" title="Delete product" aria-label="Delete">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                    </button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include "components/pagination.html" %}
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/></svg>
+      </div>
+      <h3>
+        {% if status_filter or q %}
+          No products match these filters
+        {% else %}
+          No products yet
+        {% endif %}
+      </h3>
+      <p class="text-sm">
+        {% if status_filter or q %}
+          Try clearing filters or searching for a different SKU.
+        {% else %}
+          Use <code>POST /api/v1/products/</code> via the API docs to add your first listing.
+        {% endif %}
+      </p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

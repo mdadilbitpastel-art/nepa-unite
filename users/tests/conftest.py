@@ -48,6 +48,17 @@ def buyer_user(db, tenant):
 
 @pytest.fixture
 def seller_user(db, tenant):
+    # Stripe-onboarded by default so product CRUD tests can list freely;
+    # tests that exercise onboarding itself use `seller_user_no_stripe`.
+    user = _make_user(CustomUser.Role.SELLER, tenant)
+    user.stripe_account_id = "acct_test_seller"
+    user.save(update_fields=["stripe_account_id", "updated_at"])
+    return user
+
+
+@pytest.fixture
+def seller_user_no_stripe(db, tenant):
+    """Approved seller that hasn't completed Stripe Connect yet."""
     return _make_user(CustomUser.Role.SELLER, tenant)
 
 

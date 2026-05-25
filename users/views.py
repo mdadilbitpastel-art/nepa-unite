@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 
 from notifications.tasks import (
     send_approval_email,
+    send_seller_onboarding_email,
     send_suspension_email,
     send_welcome_email,
 )
@@ -183,6 +184,11 @@ class AdminMemberViewSet(viewsets.ViewSet):
             )
         member.status = CustomUser.Status.ACTIVE
         member.save(update_fields=["status", "updated_at"])
+        # If this is the first member approved on a still-pending tenant,
+        # activate the tenant too.
+        if member.tenant_id and member.tenant.status == Tenant.Status.PENDING:
+            member.tenant.status = Tenant.Status.ACTIVE
+            member.tenant.save(update_fields=["status"])
         write_audit_log.delay(
             actor_id=str(request.user.pk),
             action="member.approve",
@@ -191,6 +197,15 @@ class AdminMemberViewSet(viewsets.ViewSet):
             payload={"new_status": member.status},
         )
         send_approval_email.delay(member.email)
+        # Sellers can't actually receive payouts until they finish Stripe
+        # Connect onboarding — nudge them with a separate email. Suppressed
+        # when the gate flag is off (Stripe not yet provisioned).
+        if (
+            settings.STRIPE_GATE_ENABLED
+            and member.role == CustomUser.Role.SELLER
+            and not member.stripe_account_id
+        ):
+            send_seller_onboarding_email.delay(member.email)
         return Response(MemberSerializer(member).data)
 
     @action(detail=True, methods=["post"])

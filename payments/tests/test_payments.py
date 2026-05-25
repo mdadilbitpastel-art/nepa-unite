@@ -135,8 +135,8 @@ def test_buyer_cannot_list_other_payments(db, force_login, buyer_user, order, te
 # ---------------------------------------------------------------------------
 # POST /api/v1/sellers/onboard
 # ---------------------------------------------------------------------------
-def test_seller_can_request_onboarding(db, force_login, seller_user):
-    client = force_login(seller_user)
+def test_seller_can_request_onboarding(db, force_login, seller_user_no_stripe):
+    client = force_login(seller_user_no_stripe)
     with patch("payments.stripe_service.stripe.Account.create",
                return_value=SimpleNamespace(id="acct_test")) as account_create, \
          patch("payments.stripe_service.stripe.AccountLink.create",
@@ -144,8 +144,8 @@ def test_seller_can_request_onboarding(db, force_login, seller_user):
         response = client.post("/api/v1/sellers/onboard", {}, format="json")
     assert response.status_code == 200
     assert response.json()["onboarding_url"] == "https://stripe.com/onboard/abc"
-    seller_user.refresh_from_db()
-    assert seller_user.stripe_account_id == "acct_test"
+    seller_user_no_stripe.refresh_from_db()
+    assert seller_user_no_stripe.stripe_account_id == "acct_test"
     account_create.assert_called_once()
 
 

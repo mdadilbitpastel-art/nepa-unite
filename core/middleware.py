@@ -9,6 +9,8 @@ class SecurityHeadersMiddleware:
         "X-Frame-Options": "DENY",
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         # Inline styles allowed for our minimal HTML pages; scripts stay strict.
+        # When Cloudinary is wired up, extend img-src to allow the CDN, e.g.
+        #     "img-src 'self' data: https://res.cloudinary.com"
         "Content-Security-Policy": (
             "default-src 'self'; "
             "style-src 'self' 'unsafe-inline'; "

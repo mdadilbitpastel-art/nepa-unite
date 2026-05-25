@@ -72,3 +72,17 @@ def test_create_rejects_duplicate_sku_for_same_tenant(
     second = client.post("/api/v1/products/", payload, format="json")
     assert second.status_code == 400
     assert "sku" in second.json()
+
+
+def test_seller_without_stripe_cannot_create_product(
+    db, force_login, seller_user_no_stripe, payload, settings
+):
+    # Gate is feature-flagged off in dev; force it on for this test so we
+    # actually exercise the 403 path the way prod will see it.
+    settings.STRIPE_GATE_ENABLED = True
+    client = force_login(seller_user_no_stripe)
+    response = client.post("/api/v1/products/", payload, format="json")
+    assert response.status_code == 403, response.content
+    body = response.json()
+    assert body["code"] == "stripe_onboarding_required"
+    assert not Product.objects.filter(seller=seller_user_no_stripe).exists()

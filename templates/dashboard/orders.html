@@ -1,0 +1,148 @@
+{% extends "base_app.html" %}
+{% block title %}Orders · NEPA Unite{% endblock %}
+{% block header_title %}Orders{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+  .filter-bar {
+    display: flex; align-items: center; gap: var(--space-3);
+    flex-wrap: wrap; margin-bottom: var(--space-4);
+  }
+  .filter-bar .chips { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .filter-bar .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 600;
+    background: var(--surface); border: 1px solid var(--border-strong);
+    color: var(--text-muted); text-decoration: none;
+    transition: background-color .12s, color .12s, border-color .12s;
+    text-transform: capitalize;
+  }
+  .filter-bar .chip:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+  .filter-bar .chip.active { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); }
+  .filter-bar .chip .count {
+    background: rgba(15, 23, 42, .08); padding: 1px 7px;
+    border-radius: 999px; font-size: 11px; font-weight: 700;
+  }
+  .filter-bar .chip.active .count { background: rgba(255,255,255,.18); }
+  .filter-bar form.inline-filters {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-left: auto; flex-wrap: wrap;
+  }
+  .filter-bar input[type="search"] {
+    padding: 8px 12px; border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md); background: var(--surface-tint);
+    color: var(--text); font-size: 13px; font-family: inherit;
+    min-width: 220px;
+    transition: background-color .15s, border-color .15s, box-shadow .15s;
+  }
+  .filter-bar input[type="search"]:focus {
+    outline: none; background: var(--surface); border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(12, 35, 64, .12);
+  }
+</style>
+{% endblock %}
+
+{% block app_content %}
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    </div>
+    <div><div class="label">Total orders</div><div class="value">{{ stats.total }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon accent">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    </div>
+    <div><div class="label">Confirmed</div><div class="value">{{ stats.confirmed }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon warning">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    </div>
+    <div><div class="label">In fulfillment</div><div class="value">{{ stats.fulfillment }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon success">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div><div class="label">Delivered</div><div class="value">{{ stats.delivered }}</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="filter-bar">
+    <div class="chips">
+      <a href="?{% if q %}q={{ q }}{% endif %}" class="chip {% if not status_filter %}active{% endif %}">
+        All <span class="count">{{ stats.total }}</span>
+      </a>
+      {% for bucket in status_buckets %}
+        <a href="?status={{ bucket.value }}{% if q %}&q={{ q }}{% endif %}"
+           class="chip {% if status_filter == bucket.value %}active{% endif %}">
+          {{ bucket.label }} <span class="count">{{ bucket.count }}</span>
+        </a>
+      {% endfor %}
+    </div>
+    {% if role == 'admin' or role == 'auditor' %}
+      <form method="get" class="inline-filters auto-search-form">
+        {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+        <input type="search" name="q" value="{{ q }}" placeholder="Search by buyer email…" autocomplete="off">
+      </form>
+    {% endif %}
+  </div>
+
+  {% if orders %}
+    <table>
+      <thead>
+        <tr>
+          <th>Order</th>
+          {% if role != 'buyer' %}<th>Buyer</th>{% endif %}
+          {% if role == 'admin' or role == 'auditor' %}<th>Tenant</th>{% endif %}
+          <th>Status</th>
+          <th>Total</th>
+          <th>Placed</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+          <tr>
+            <td><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></td>
+            {% if role != 'buyer' %}<td>{{ o.buyer.email }}</td>{% endif %}
+            {% if role == 'admin' or role == 'auditor' %}<td>{{ o.tenant.name|default:"—" }}</td>{% endif %}
+            <td><span class="pill {{ o.status }}">{{ o.get_status_display|default:o.status }}</span></td>
+            <td><strong>${{ o.total_amount }}</strong></td>
+            <td class="muted">{{ o.created_at|date:"M j, Y H:i" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include "components/pagination.html" %}
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      </div>
+      <h3>
+        {% if status_filter or q %}
+          No orders match these filters
+        {% else %}
+          No orders yet
+        {% endif %}
+      </h3>
+      <p class="text-sm">
+        {% if status_filter or q %}
+          Try clearing filters or picking a different status.
+        {% elif role == 'buyer' %}
+          When you place an order it'll show up here.
+        {% elif role == 'seller' %}
+          When buyers order your products they'll appear here.
+        {% else %}
+          As buyers place orders they'll appear here.
+        {% endif %}
+      </p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

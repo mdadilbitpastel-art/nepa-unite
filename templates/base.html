@@ -18,7 +18,11 @@
       --surface-2:          #f1f5f9;
       --surface-tint:       #f8fafc;
       --border:             #e5e7eb;
-      --border-strong:      #cbd5e1;
+      /* Bumped from slate-300 (#cbd5e1) to slate-400 — inputs, selects,
+         textareas and secondary-buttons read noticeably crisper without
+         feeling heavy. Single-source change: every form field, filter
+         bar and chip across the dashboard picks this up automatically. */
+      --border-strong:      #94a3b8;
 
       --text:               #0f172a;
       --text-muted:         #475569;
@@ -111,29 +115,45 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 10px 18px;
+      padding: 11px 18px;
       border-radius: var(--radius-md);
       font-size: 14px;
       font-weight: 600;
+      /* line-height: 1 so the text bounding box collapses to font-size — text
+         and SVG icon end up sharing the exact same vertical center under
+         align-items: center (otherwise descenders push text visually down). */
+      line-height: 1;
       cursor: pointer;
       border: 1px solid transparent;
-      transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s;
+      transition: background-color .18s ease, border-color .18s ease, color .18s ease,
+                  box-shadow .18s ease, transform .12s ease;
       text-decoration: none;
       white-space: nowrap;
     }
+    .btn:active { transform: translateY(1px); }
+    /* Optical alignment: even with line-height:1 + flex centering, most
+       sans-serif fonts put the visual midpoint of glyphs ~1px above the
+       geometric line-box center (cap-height/descender asymmetry). Nudge
+       the icon down by 1px so it sits on the same optical line as the
+       text — this is the same trick Linear/Vercel/Tailwind UI use. */
+    .btn > svg { flex-shrink: 0; display: block; transform: translateY(1px); }
     .btn:hover { text-decoration: none; }
     .btn-primary    { background: var(--primary); color: var(--text-on-primary); }
-    .btn-primary:hover { background: var(--primary-hover); color: var(--text-on-primary); }
+    .btn-primary:hover { background: var(--primary-hover); color: var(--text-on-primary);
+                         box-shadow: 0 4px 12px rgba(12, 35, 64, .22); }
     .btn-accent     { background: var(--accent); color: #1a1208; }
-    .btn-accent:hover { background: var(--accent-hover); color: #1a1208; }
+    .btn-accent:hover { background: var(--accent-hover); color: #1a1208;
+                        box-shadow: 0 4px 12px rgba(184, 132, 58, .28); }
     .btn-secondary  { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
-    .btn-secondary:hover { background: var(--surface-2); color: var(--text); }
+    .btn-secondary:hover { background: var(--surface-2); color: var(--text);
+                           box-shadow: var(--shadow-sm); }
     .btn-ghost      { background: transparent; color: var(--text-muted); }
     .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
     .btn-danger     { background: var(--danger); color: white; }
-    .btn-danger:hover { background: #991b1b; color: white; }
+    .btn-danger:hover { background: #991b1b; color: white;
+                        box-shadow: 0 4px 12px rgba(185, 28, 28, .25); }
     .btn-block      { width: 100%; }
-    .btn-sm         { padding: 6px 12px; font-size: 13px; }
+    .btn-sm         { padding: 8px 12px; font-size: 13px; gap: 6px; }
 
     /* ============================================================
        Forms
@@ -163,13 +183,16 @@
       border: 1px solid var(--border-strong);
       border-radius: var(--radius-md);
       font-size: 14px;
-      background: var(--surface);
+      /* Slight off-white so inputs separate from white cards visually
+         without feeling "filled" — flips to crisp white on focus. */
+      background: var(--surface-tint);
       color: var(--text);
       font-family: inherit;
-      transition: border-color .15s, box-shadow .15s;
+      transition: background-color .15s, border-color .15s, box-shadow .15s;
     }
     .field input:focus, .field select:focus, .field textarea:focus {
       outline: none;
+      background: var(--surface);
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(12, 35, 64, .12);
     }
@@ -209,7 +232,9 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       padding: var(--space-6);
-      box-shadow: var(--shadow-sm);
+      /* Stronger shadow gives cards real "elevation" — they no longer
+         look pasted on. */
+      box-shadow: var(--shadow-md);
     }
     .card + .card { margin-top: var(--space-6); }
     .card h2 { font-size: 16px; margin-bottom: var(--space-4); }
@@ -227,24 +252,42 @@
       margin-bottom: var(--space-6);
     }
     .stat {
-      background: var(--surface);
+      /* Subtle diagonal gradient from white into a hair of slate so the
+         card has dimension instead of being flat white-on-white. */
+      background: linear-gradient(135deg, var(--surface) 0%, var(--surface-tint) 100%);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       padding: var(--space-5);
-      display: flex; align-items: center; gap: 14px;
-      box-shadow: var(--shadow-sm);
+      display: flex; align-items: center; gap: 16px;
+      box-shadow: var(--shadow-md);
+      position: relative; overflow: hidden;
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+    .stat:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, .10);
+      border-color: var(--border-strong);
     }
     .stat-icon {
-      width: 44px; height: 44px; border-radius: 12px;
+      width: 48px; height: 48px; border-radius: 12px;
       display: inline-flex; align-items: center; justify-content: center;
       background: var(--primary-soft); color: var(--primary);
       flex-shrink: 0;
+      /* Inset ring + outer glow give the colored chip a soft pill feel. */
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6),
+                  0 2px 6px rgba(12, 35, 64, .08);
     }
-    .stat-icon.accent  { background: var(--accent-soft); color: var(--accent-hover); }
-    .stat-icon.success { background: var(--success-bg); color: var(--success); }
-    .stat-icon.warning { background: var(--warning-bg); color: var(--warning); }
-    .stat .label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
-    .stat .value { font-size: 26px; font-weight: 700; color: var(--text); margin-top: 2px; }
+    .stat-icon.accent  { background: var(--accent-soft); color: var(--accent-hover);
+                         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6),
+                                     0 2px 6px rgba(184, 132, 58, .14); }
+    .stat-icon.success { background: var(--success-bg); color: var(--success);
+                         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6),
+                                     0 2px 6px rgba(4, 120, 87, .14); }
+    .stat-icon.warning { background: var(--warning-bg); color: var(--warning);
+                         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6),
+                                     0 2px 6px rgba(180, 83, 9, .14); }
+    .stat .label { color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .7px; font-weight: 600; }
+    .stat .value { font-size: 28px; font-weight: 700; color: var(--text); margin-top: 4px; line-height: 1.1; }
 
     table {
       width: 100%;
@@ -272,7 +315,12 @@
       vertical-align: middle;
     }
     table tr:last-child td { border-bottom: 0; }
-    table tr:hover td { background: var(--surface-tint); }
+    /* Zebra striping — alternate rows get a subtle slate tint so each
+       row is visually separate even when content density is high. */
+    table tbody tr:nth-child(even) td { background: var(--surface-2); }
+    /* Hover wins over both white and striped rows — one shade darker
+       than the stripe (slate-200) so it's unambiguous. */
+    table tbody tr:hover td { background: #e2e8f0; }
 
     /* ============================================================
        Badges / pills
@@ -304,6 +352,58 @@
     .pill.role-buyer  { background: var(--info-bg);     color: var(--info); }
     .pill.role-seller { background: var(--accent-soft); color: var(--accent-hover); }
     .pill.role-auditor{ background: var(--surface-2);   color: var(--text-muted); }
+
+    /* ============================================================
+       Pagination
+       ============================================================ */
+    .pagination {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-4) 2px 0 2px;
+      margin-top: var(--space-2);
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .pagination-summary {
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+    .pagination-summary strong { color: var(--text); font-weight: 600; }
+    .pagination-controls { display: inline-flex; gap: 4px; align-items: center; }
+    .page-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 32px; height: 32px;
+      padding: 0 9px;
+      border-radius: 7px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px; font-weight: 600;
+      text-decoration: none; line-height: 1;
+      transition: background-color .12s, color .12s, border-color .12s;
+    }
+    .page-btn:hover {
+      background: var(--primary-soft); color: var(--primary);
+      border-color: var(--primary); text-decoration: none;
+    }
+    .page-btn.current {
+      background: var(--primary); color: var(--text-on-primary);
+      border-color: var(--primary); cursor: default;
+    }
+    .page-btn.current:hover {
+      background: var(--primary); color: var(--text-on-primary);
+    }
+    .page-btn.disabled {
+      opacity: .4; cursor: not-allowed;
+      background: var(--surface); color: var(--text-muted);
+    }
+    .page-btn.disabled:hover { background: var(--surface); color: var(--text-muted); border-color: var(--border-strong); }
+    .page-ellipsis {
+      padding: 0 6px;
+      color: var(--text-subtle);
+      font-weight: 600;
+      user-select: none;
+    }
 
     /* ============================================================
        Empty states
@@ -348,5 +448,19 @@
 </head>
 <body>
   {% block layout %}{% endblock %}
+<script>
+(function(){
+  var key='_scroll_'+location.pathname+location.search;
+  var raw=sessionStorage.getItem(key);
+  if(raw){
+    var data=JSON.parse(raw);
+    if(Date.now()-data.t<5000){window.scrollTo(0,data.y);}
+    sessionStorage.removeItem(key);
+  }
+  window.addEventListener('beforeunload',function(){
+    sessionStorage.setItem(key,JSON.stringify({y:window.scrollY,t:Date.now()}));
+  });
+})();
+</script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.conf import settings
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -48,12 +49,39 @@ class ProductViewSet(viewsets.ModelViewSet):
     # ------------------------------------------------------------------
     # CRUD
     # ------------------------------------------------------------------
+    @staticmethod
+    def _stripe_gate(user) -> Response | None:
+        """Block sellers who haven't finished Stripe Connect onboarding.
+
+        Returning a Response signals the caller to short-circuit. We do this
+        on every listing-creation path so a seller can never publish a
+        product they can't actually receive payouts for. Disabled in dev
+        until Stripe Connect is provisioned (see settings.STRIPE_GATE_ENABLED).
+        """
+        if not settings.STRIPE_GATE_ENABLED:
+            return None
+        if user.role == CustomUser.Role.SELLER and not user.stripe_account_id:
+            return Response(
+                {
+                    "detail": (
+                        "Complete Stripe Connect onboarding before listing "
+                        "products. POST /api/v1/sellers/onboard to start."
+                    ),
+                    "code": "stripe_onboarding_required",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return None
+
     def create(self, request, *args, **kwargs):
         if request.user.tenant_id is None:
             return Response(
                 {"detail": "User is not attached to a tenant."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        gate = self._stripe_gate(request.user)
+        if gate is not None:
+            return gate
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         product = serializer.save(
@@ -119,6 +147,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         parser_classes=[MultiPartParser, FormParser],
     )
     def bulk_upload(self, request):
+        gate = self._stripe_gate(request.user)
+        if gate is not None:
+            return gate
         serializer = BulkUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         csv_file = serializer.validated_data["file"]

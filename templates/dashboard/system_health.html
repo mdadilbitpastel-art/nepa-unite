@@ -1,0 +1,208 @@
+{% extends "base_app.html" %}
+{% block title %}System health · NEPA Unite{% endblock %}
+{% block header_title %}System Health{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+{% if refresh_seconds %}
+  <meta http-equiv="refresh" content="{{ refresh_seconds }}">
+{% endif %}
+<style>
+  .health-banner {
+    border-radius: var(--radius-lg);
+    padding: var(--space-5) var(--space-6);
+    margin-bottom: var(--space-6);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--space-4); flex-wrap: wrap;
+    border: 1px solid transparent;
+    box-shadow: var(--shadow-sm);
+  }
+  .health-banner.ok       { background: var(--success-bg); color: #064e3b; border-color: #a7f3d0; }
+  .health-banner.degraded { background: var(--danger-bg);  color: #7f1d1d; border-color: #fecaca; }
+  .health-banner .status-text { display: flex; align-items: center; gap: 14px; }
+  .health-banner .status-icon {
+    width: 48px; height: 48px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.55);
+    flex-shrink: 0;
+  }
+  .health-banner h2 { margin: 0; font-size: 19px; color: inherit; }
+  .health-banner .meta { font-size: 13px; opacity: .85; margin-top: 3px; }
+  .health-banner .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+  .check-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    border-left: 4px solid transparent;
+  }
+  .check-card.ok   { border-left-color: var(--success); }
+  .check-card.fail { border-left-color: var(--danger); }
+  .check-card .top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 4px;
+  }
+  .check-card h3 { font-size: 15px; font-weight: 700; margin: 0; }
+  .check-card .kind { color: var(--text-muted); font-size: 12.5px; }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .5px;
+  }
+  .status-pill.ok   { background: var(--success-bg); color: var(--success); }
+  .status-pill.fail { background: var(--danger-bg);  color: var(--danger); }
+  .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  .probe-line {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px dashed var(--border);
+    display: flex; align-items: center; gap: 8px;
+    color: var(--text-muted);
+    font-size: 12.5px;
+  }
+  .probe-line code { background: var(--surface-2); }
+
+  .error-detail {
+    margin-top: var(--space-3);
+    padding: 10px 12px;
+    background: var(--danger-bg);
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-md);
+    color: #7f1d1d;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    word-break: break-word;
+  }
+
+  .refresh-group {
+    display: inline-flex; align-items: center;
+    border-radius: 8px; overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, .15);
+  }
+  .refresh-group a {
+    padding: 6px 12px;
+    font-size: 12px; font-weight: 600;
+    color: inherit; text-decoration: none;
+    background: rgba(255, 255, 255, .35);
+    border-right: 1px solid rgba(15, 23, 42, .12);
+  }
+  .refresh-group a:last-child { border-right: 0; }
+  .refresh-group a:hover { background: rgba(255, 255, 255, .55); text-decoration: none; }
+  .refresh-group a.active {
+    background: var(--primary); color: var(--text-on-primary);
+  }
+  .refresh-group .label {
+    padding: 6px 10px; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .5px;
+    background: rgba(15, 23, 42, .06);
+    color: inherit; opacity: .8;
+    border-right: 1px solid rgba(15, 23, 42, .12);
+  }
+
+  .info-card { display: flex; flex-direction: column; gap: 6px; }
+  .info-card .label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+    color: var(--text-muted); font-weight: 700;
+  }
+  .info-card .value { font-size: 13.5px; }
+</style>
+{% endblock %}
+
+{% block app_content %}
+<div class="health-banner {% if overall_ok %}ok{% else %}degraded{% endif %}">
+  <div class="status-text">
+    <div class="status-icon">
+      {% if overall_ok %}
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      {% else %}
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      {% endif %}
+    </div>
+    <div>
+      <h2>{% if overall_ok %}All systems operational{% else %}Service is degraded{% endif %}</h2>
+      <div class="meta">
+        Checked at {{ checked_at|date:"M j, Y H:i:s" }}
+        &middot; HTTP <strong>{% if overall_ok %}200 OK{% else %}503 Service Unavailable{% endif %}</strong>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <div class="refresh-group" role="group" aria-label="Auto-refresh interval">
+      <span class="label">Auto-refresh</span>
+      <a href="{% url 'system_health' %}" class="{% if not refresh_seconds %}active{% endif %}">Off</a>
+      <a href="?refresh=15" class="{% if refresh_seconds == 15 %}active{% endif %}">15s</a>
+      <a href="?refresh=30" class="{% if refresh_seconds == 30 %}active{% endif %}">30s</a>
+      <a href="?refresh=60" class="{% if refresh_seconds == 60 %}active{% endif %}">60s</a>
+    </div>
+    <a href="?refresh={{ refresh_seconds }}" class="btn btn-{% if overall_ok %}primary{% else %}danger{% endif %} btn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      Re-run checks
+    </a>
+  </div>
+</div>
+
+<div class="check-grid">
+  {% for c in checks %}
+    <div class="check-card {% if c.ok %}ok{% else %}fail{% endif %}">
+      <div class="top">
+        <div>
+          <h3>{{ c.name }}</h3>
+          <div class="kind">{{ c.kind }}</div>
+        </div>
+        {% if c.ok %}
+          <span class="status-pill ok"><span class="dot"></span>Healthy</span>
+        {% else %}
+          <span class="status-pill fail"><span class="dot"></span>Failing</span>
+        {% endif %}
+      </div>
+      <div class="probe-line">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Probe: <code>{{ c.probe }}</code>
+      </div>
+      {% if c.error %}
+        <div class="error-detail">{{ c.error }}</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Underlying endpoint</h2>
+    <a href="{{ health_endpoint }}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      Open raw JSON
+    </a>
+  </div>
+  <div class="grid-2">
+    <div class="info-card">
+      <div class="label">Endpoint</div>
+      <div class="value"><code>GET {{ health_endpoint }}</code></div>
+    </div>
+    <div class="info-card">
+      <div class="label">Authentication</div>
+      <div class="value">None — public probe</div>
+    </div>
+    <div class="info-card">
+      <div class="label">Healthy response</div>
+      <div class="value">HTTP 200 with <code>{"status": "ok"}</code></div>
+    </div>
+    <div class="info-card">
+      <div class="label">Degraded response</div>
+      <div class="value">HTTP 503 with per-check <code>error</code> strings</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

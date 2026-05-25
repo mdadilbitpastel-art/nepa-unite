@@ -1,198 +1,131 @@
 {% extends "base_app.html" %}
 {% block title %}Dashboard · NEPA Unite{% endblock %}
+{% block header_title %}Dashboard{% endblock %}
 
 {% block app_content %}
-<div class="page-header">
-  <div>
-    <h1>
-      {% if role == "buyer" %}Buyer dashboard
-      {% elif role == "seller" %}Seller dashboard
-      {% elif role == "admin" %}Administrator dashboard
-      {% elif role == "auditor" %}Auditor dashboard
-      {% else %}Dashboard{% endif %}
-    </h1>
-    <div class="subtitle">
-      Signed in as <strong>{{ user.email }}</strong>
-      &middot;
-      <span class="pill role-{{ role }}">{{ role }}</span>
-      {% if user.tenant %}&middot; {{ user.tenant.name }}{% endif %}
-    </div>
-  </div>
-</div>
-
-{# ───────────────────────── BUYER ───────────────────────── #}
-{% if role == "buyer" %}
-
-  <div class="stat-grid">
-    <div class="stat">
-      <div class="stat-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-      </div>
-      <div><div class="label">Your orders</div><div class="value">{{ recent_orders|length }}</div></div>
-    </div>
-    <div class="stat">
-      <div class="stat-icon accent">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/></svg>
-      </div>
-      <div><div class="label">Catalog preview</div><div class="value">{{ products_preview|length }}</div></div>
-    </div>
-    <div class="stat">
-      <div class="stat-icon success">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-      </div>
-      <div><div class="label">Tenant status</div><div class="value" style="font-size:18px;">{{ user.tenant.get_status_display|default:"Active" }}</div></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <h2>Your recent orders</h2>
-      <a href="/api/docs/" class="btn btn-secondary btn-sm">Open API</a>
-    </div>
-    {% if recent_orders %}
-      <table>
-        <thead><tr><th>Order</th><th>Status</th><th>Total</th><th>Placed</th></tr></thead>
-        <tbody>
-          {% for o in recent_orders %}
-            <tr>
-              <td><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></td>
-              <td><span class="pill {{ o.status }}">{{ o.status }}</span></td>
-              <td><strong>${{ o.total_amount }}</strong></td>
-              <td class="muted">{{ o.created_at|date:"M j, Y" }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty">
-        <div class="empty-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        </div>
-        <h3>No orders yet</h3>
-        <p class="text-sm">Browse the catalog below and place your first order.</p>
-      </div>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <h2>Latest in the catalog</h2>
-      <a href="/api/v1/products/search/" class="btn btn-secondary btn-sm">Search products</a>
-    </div>
-    {% if products_preview %}
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-        {% for p in products_preview %}
-          <div style="border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--surface);">
-            <div class="text-xs muted" style="text-transform: uppercase; letter-spacing: .5px;">{{ p.sku }}</div>
-            <div style="font-weight: 600; margin: 6px 0;">{{ p.name }}</div>
-            <div style="color: var(--primary); font-weight: 700; font-size: 17px;">${{ p.price }}</div>
-            <div class="text-xs muted" style="margin-top: 4px;">{{ p.inventory_count }} in stock</div>
-          </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="empty">
-        <div class="empty-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/></svg>
-        </div>
-        <h3>Catalog is empty</h3>
-        <p class="text-sm">Sellers haven't listed anything yet.</p>
-      </div>
-    {% endif %}
-  </div>
-
-
-{# ───────────────────────── SELLER ───────────────────────── #}
-{% elif role == "seller" %}
+{% if role == "seller" %}
 
   <div class="stat-grid">
     <div class="stat">
       <div class="stat-icon">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/></svg>
       </div>
-      <div><div class="label">My products</div><div class="value">{{ my_products|length }}</div></div>
+      <div><div class="label">Total products</div><div class="value">{{ my_products_count }}</div></div>
     </div>
     <div class="stat">
       <div class="stat-icon accent">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       </div>
-      <div><div class="label">Open orders</div><div class="value">{{ my_orders|length }}</div></div>
+      <div><div class="label">Pending orders</div><div class="value">{{ pending_orders_count }}</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon warning">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div><div class="label">Fulfilled orders</div><div class="value">{{ fulfilled_orders_count }}</div></div>
     </div>
     <div class="stat">
       <div class="stat-icon success">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 11h20"/></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
       </div>
-      <div><div class="label">Stripe Connect</div>
-           <div class="value" style="font-size:18px;">{% if user.stripe_account_id %}Connected{% else %}Not linked{% endif %}</div></div>
+      <div><div class="label">Revenue</div><div class="value">${{ total_revenue }}</div></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4);">
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-header"><h2>Revenue &mdash; Last 7 days</h2></div>
+      <div style="padding:16px 20px;"><canvas id="revenueChart" height="200"></canvas></div>
+    </div>
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-header"><h2>Orders &mdash; Last 7 days</h2></div>
+      <div style="padding:16px 20px;"><canvas id="ordersChart" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4);">
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-header"><h2>Order status breakdown</h2></div>
+      <div style="padding:16px 20px;display:flex;align-items:center;justify-content:center;">
+        <canvas id="orderStatusChart" height="200" style="max-height:220px;"></canvas>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-header"><h2>Product overview</h2></div>
+      <div style="padding:16px 20px;display:flex;align-items:center;justify-content:center;">
+        <canvas id="productStatusChart" height="200" style="max-height:220px;"></canvas>
+      </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-header">
-      <h2>Your product listings</h2>
-      <a href="/api/docs/#/products/products_create" class="btn btn-primary btn-sm">
+    <div class="card-header"><h2>Quick actions</h2></div>
+    <div style="padding:16px 20px;display:flex;gap:12px;flex-wrap:wrap;">
+      <a href="{% url 'seller_product_create' %}" class="btn btn-primary btn-sm">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
         Add product
       </a>
+      <a href="{% url 'seller_products' %}" class="btn btn-secondary btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/></svg>
+        My products
+      </a>
+      <a href="{% url 'orders' %}" class="btn btn-secondary btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Orders
+      </a>
+      <a href="{% url 'seller_products' %}?status=low_stock" class="btn btn-secondary btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Low stock ({{ low_stock_count }})
+      </a>
     </div>
-    {% if my_products %}
-      <table>
-        <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Inventory</th><th>Status</th></tr></thead>
-        <tbody>
-          {% for p in my_products %}
-            <tr>
-              <td><code>{{ p.sku }}</code></td>
-              <td>{{ p.name }}</td>
-              <td><strong>${{ p.price }}</strong></td>
-              <td>{{ p.inventory_count }}</td>
-              <td><span class="pill {{ p.status }}">{{ p.status }}</span></td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty">
-        <div class="empty-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/></svg>
-        </div>
-        <h3>No products yet</h3>
-        <p class="text-sm">Use <code>POST /api/v1/products/</code> via the API docs to add your first listing.</p>
-      </div>
-    {% endif %}
   </div>
 
-  <div class="card">
-    <div class="card-header">
-      <h2>Orders containing your products</h2>
-    </div>
-    {% if my_orders %}
-      <table>
-        <thead><tr><th>Order</th><th>Buyer</th><th>Status</th><th>Total</th><th>Placed</th></tr></thead>
-        <tbody>
-          {% for o in my_orders %}
-            <tr>
-              <td><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></td>
-              <td>{{ o.buyer.email }}</td>
-              <td><span class="pill {{ o.status }}">{{ o.status }}</span></td>
-              <td><strong>${{ o.total_amount }}</strong></td>
-              <td class="muted">{{ o.created_at|date:"M j, Y" }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty">
-        <div class="empty-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        </div>
-        <h3>No incoming orders yet</h3>
-        <p class="text-sm">When buyers order your products, they'll appear here.</p>
-      </div>
-    {% endif %}
-  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script>
+  (function(){
+    var primaryColor='#0c2340';
+    var accentColor='#d4a155';
+    var successColor='#047857';
+    var warningColor='#b45309';
+    var mutedColor='#94a3b8';
+
+    var revenueLabels={{ revenue_labels_json|safe }};
+    var revenueData={{ revenue_data_json|safe }};
+    var ordersData={{ orders_data_json|safe }};
+    var orderStatusLabels={{ order_status_labels_json|safe }};
+    var orderStatusData={{ order_status_data_json|safe }};
+
+    Chart.defaults.font={family:'-apple-system,BlinkMacSystemFont,Inter,sans-serif',size:11};
+    Chart.defaults.plugins.legend.display=false;
+
+    new Chart(document.getElementById('revenueChart'),{
+      type:'bar',
+      data:{labels:revenueLabels,datasets:[{data:revenueData,backgroundColor:accentColor,borderRadius:4,barPercentage:0.6}]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{callback:function(v){return '$'+v;}}},x:{grid:{display:false}}},plugins:{tooltip:{callbacks:{label:function(c){return '$'+c.parsed.y.toFixed(2);}}}}}
+    });
+
+    new Chart(document.getElementById('ordersChart'),{
+      type:'line',
+      data:{labels:revenueLabels,datasets:[{data:ordersData,borderColor:primaryColor,backgroundColor:'rgba(12,35,64,.08)',fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:primaryColor}]},
+      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{stepSize:1}},x:{grid:{display:false}}},plugins:{tooltip:{callbacks:{label:function(c){return c.parsed.y+' orders';}}}}}
+    });
+
+    var statusColors=[primaryColor,accentColor,successColor,warningColor,'#6366f1','#ec4899',mutedColor];
+    new Chart(document.getElementById('orderStatusChart'),{
+      type:'doughnut',
+      data:{labels:orderStatusLabels,datasets:[{data:orderStatusData,backgroundColor:statusColors.slice(0,orderStatusLabels.length),borderWidth:0}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:true,position:'bottom',labels:{padding:12,usePointStyle:true,pointStyle:'circle'}}}}
+    });
+
+    new Chart(document.getElementById('productStatusChart'),{
+      type:'doughnut',
+      data:{labels:['Active','Inactive','Low stock'],datasets:[{data:[{{ active_products_count }},{{ inactive_products_count }},{{ low_stock_count }}],backgroundColor:[successColor,mutedColor,warningColor],borderWidth:0}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:true,position:'bottom',labels:{padding:12,usePointStyle:true,pointStyle:'circle'}}}}
+    });
+  })();
+  </script>
 
 
-{# ───────────────────────── ADMIN ───────────────────────── #}
 {% elif role == "admin" %}
 
   <div class="stat-grid">
@@ -295,7 +228,6 @@
   </div>
 
 
-{# ───────────────────────── AUDITOR ───────────────────────── #}
 {% elif role == "auditor" %}
 
   <div class="card">

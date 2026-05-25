@@ -6,7 +6,12 @@ services:
       POSTGRES_PASSWORD: nepa
       POSTGRES_DB: nepa_unite
     ports:
-      - "5432:5432"
+      # Host port 5433 → container's 5432. Host's 5432 is held by a
+      # native Windows PostgreSQL install on some dev machines; using
+      # 5433 sidesteps the conflict. Django (in the `web` container)
+      # still talks to `postgres:5432` over the Docker network — only
+      # external tools like pgAdmin care about this mapping.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

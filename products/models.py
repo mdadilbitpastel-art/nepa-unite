@@ -30,6 +30,12 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     attributes = models.JSONField(default=dict, blank=True)
     inventory_count = models.IntegerField(default=0)
+    # Primary listing image. Stored via DEFAULT_FILE_STORAGE — local
+    # filesystem in dev, Cloudinary in prod (set CLOUDINARY_URL +
+    # cloudinary_storage backend to swap; no code changes needed).
+    primary_image = models.ImageField(
+        upload_to="products/%Y/%m/", blank=True, null=True
+    )
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.ACTIVE
     )
