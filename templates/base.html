@@ -1,9 +1,12 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta name="theme-color" content="#0c2340">
+  <script src="{% static 'js/theme.js' %}"></script>
   <title>{% block title %}NEPA Unite{% endblock %}</title>
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230c2340'/%3E%3Ccircle cx='12' cy='16' r='6' fill='none' stroke='%23d4a155' stroke-width='2.2'/%3E%3Ccircle cx='20' cy='16' r='6' fill='none' stroke='%23ffffff' stroke-width='2.2'/%3E%3C/svg%3E">
@@ -13,15 +16,12 @@
        Design tokens
        ============================================================ */
     :root {
+      color-scheme: light;
       --bg:                 #f6f7fb;
       --surface:            #ffffff;
       --surface-2:          #f1f5f9;
       --surface-tint:       #f8fafc;
       --border:             #e5e7eb;
-      /* Bumped from slate-300 (#cbd5e1) to slate-400 — inputs, selects,
-         textareas and secondary-buttons read noticeably crisper without
-         feeling heavy. Single-source change: every form field, filter
-         bar and chip across the dashboard picks this up automatically. */
       --border-strong:      #94a3b8;
 
       --text:               #0f172a;
@@ -65,8 +65,65 @@
       --space-10:           40px;
       --space-12:           48px;
 
+      --sidebar-bg:         #0c2340;
+      --profile-bg:         #0c2340;
+      --profile-text:       #ffffff;
+      --profile-text-secondary: #94a3b8;
+      --profile-text-strong:#ffffff;
+      --profile-border:     rgba(255,255,255,.1);
+      --profile-divider:    rgba(255,255,255,.08);
+      --profile-link:       #cbd5e1;
+      --profile-link-hover-bg: rgba(255,255,255,.06);
+      --profile-link-hover: #ffffff;
+      --profile-hover-shadow: 0 0 0 3px rgba(12,35,64,.15);
+
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                    "Helvetica Neue", Ubuntu, Cantarell, sans-serif;
+    }
+
+    /* ============================================================
+       Dark theme
+       ============================================================ */
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg:              #0f172a;
+      --surface:         #1e293b;
+      --surface-2:       #283548;
+      --surface-tint:    #1a2332;
+      --border:          #334155;
+      --border-strong:   #475569;
+      --text:            #f1f5f9;
+      --text-muted:      #94a3b8;
+      --text-subtle:     #64748b;
+      --primary:         #6366f1;
+      --primary-hover:   #818cf8;
+      --primary-soft:    rgba(99, 102, 241, .14);
+      --text-on-primary: #ffffff;
+      --accent:          #e0ad5a;
+      --accent-hover:    #f0c478;
+      --accent-soft:     rgba(224, 173, 90, .14);
+      --success:         #34d399;
+      --success-bg:      rgba(52, 211, 153, .14);
+      --warning:         #fbbf24;
+      --warning-bg:      rgba(251, 191, 36, .14);
+      --danger:          #f87171;
+      --danger-bg:       rgba(248, 113, 113, .14);
+      --info:            #60a5fa;
+      --info-bg:         rgba(96, 165, 250, .14);
+      --shadow-sm:       0 1px 3px rgba(0, 0, 0, .4);
+      --shadow-md:       0 4px 14px rgba(0, 0, 0, .45);
+      --shadow-lg:       0 16px 40px rgba(0, 0, 0, .55);
+      --sidebar-bg:      #0b1222;
+      --profile-bg:      #f1f5f9;
+      --profile-text:    #0f172a;
+      --profile-text-secondary: #475569;
+      --profile-text-strong: #0f172a;
+      --profile-border:  #e2e8f0;
+      --profile-divider: #d1d5db;
+      --profile-link:    #334155;
+      --profile-link-hover-bg: rgba(0,0,0,.06);
+      --profile-link-hover: #0f172a;
+      --profile-hover-shadow: 0 0 0 3px rgba(241,245,249,.25);
     }
 
     /* ============================================================
@@ -119,9 +176,6 @@
       border-radius: var(--radius-md);
       font-size: 14px;
       font-weight: 600;
-      /* line-height: 1 so the text bounding box collapses to font-size — text
-         and SVG icon end up sharing the exact same vertical center under
-         align-items: center (otherwise descenders push text visually down). */
       line-height: 1;
       cursor: pointer;
       border: 1px solid transparent;
@@ -131,11 +185,6 @@
       white-space: nowrap;
     }
     .btn:active { transform: translateY(1px); }
-    /* Optical alignment: even with line-height:1 + flex centering, most
-       sans-serif fonts put the visual midpoint of glyphs ~1px above the
-       geometric line-box center (cap-height/descender asymmetry). Nudge
-       the icon down by 1px so it sits on the same optical line as the
-       text — this is the same trick Linear/Vercel/Tailwind UI use. */
     .btn > svg { flex-shrink: 0; display: block; transform: translateY(1px); }
     .btn:hover { text-decoration: none; }
     .btn-primary    { background: var(--primary); color: var(--text-on-primary); }
@@ -183,8 +232,6 @@
       border: 1px solid var(--border-strong);
       border-radius: var(--radius-md);
       font-size: 14px;
-      /* Slight off-white so inputs separate from white cards visually
-         without feeling "filled" — flips to crisp white on focus. */
       background: var(--surface-tint);
       color: var(--text);
       font-family: inherit;
@@ -232,8 +279,6 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       padding: var(--space-6);
-      /* Stronger shadow gives cards real "elevation" — they no longer
-         look pasted on. */
       box-shadow: var(--shadow-md);
     }
     .card + .card { margin-top: var(--space-6); }
@@ -252,40 +297,49 @@
       margin-bottom: var(--space-6);
     }
     .stat {
-      /* Subtle diagonal gradient from white into a hair of slate so the
-         card has dimension instead of being flat white-on-white. */
-      background: linear-gradient(135deg, var(--surface) 0%, var(--surface-tint) 100%);
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       padding: var(--space-5);
       display: flex; align-items: center; gap: 16px;
-      box-shadow: var(--shadow-md);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, .12), 0 4px 12px rgba(15, 23, 42, .08);
       position: relative; overflow: hidden;
-      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+      transition: transform .18s ease, box-shadow .18s ease;
     }
     .stat:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(15, 23, 42, .10);
-      border-color: var(--border-strong);
+      transform: translateY(-3px);
+      box-shadow: 0 4px 8px rgba(15, 23, 42, .14), 0 12px 32px rgba(15, 23, 42, .1);
+    }
+    [data-theme="dark"] .stat {
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .4), 0 4px 12px rgba(0, 0, 0, .3);
+    }
+    [data-theme="dark"] .stat:hover {
+      box-shadow: 0 4px 8px rgba(0, 0, 0, .5), 0 12px 32px rgba(0, 0, 0, .4);
     }
     .stat-icon {
-      width: 48px; height: 48px; border-radius: 12px;
+      width: 52px; height: 52px; border-radius: 50%;
       display: inline-flex; align-items: center; justify-content: center;
-      background: var(--primary-soft); color: var(--primary);
       flex-shrink: 0;
-      /* Inset ring + outer glow give the colored chip a soft pill feel. */
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6),
-                  0 2px 6px rgba(12, 35, 64, .08);
+      color: #fff;
+      background: #6366f1;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, .35);
     }
-    .stat-icon.accent  { background: var(--accent-soft); color: var(--accent-hover);
-                         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6),
-                                     0 2px 6px rgba(184, 132, 58, .14); }
-    .stat-icon.success { background: var(--success-bg); color: var(--success);
-                         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6),
-                                     0 2px 6px rgba(4, 120, 87, .14); }
-    .stat-icon.warning { background: var(--warning-bg); color: var(--warning);
-                         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6),
-                                     0 2px 6px rgba(180, 83, 9, .14); }
+    .stat-icon.accent {
+      background: #f59e0b;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, .35);
+    }
+    .stat-icon.success {
+      background: #10b981;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, .35);
+    }
+    .stat-icon.warning {
+      background: #f43f5e;
+      box-shadow: 0 4px 12px rgba(244, 63, 94, .35);
+    }
+    .stat-icon.info {
+      background: #06b6d4;
+      box-shadow: 0 4px 12px rgba(6, 182, 212, .35);
+    }
     .stat .label { color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .7px; font-weight: 600; }
     .stat .value { font-size: 28px; font-weight: 700; color: var(--text); margin-top: 4px; line-height: 1.1; }
 
@@ -301,7 +355,7 @@
       text-transform: uppercase;
       letter-spacing: .6px;
       color: var(--text-muted);
-      font-weight: 600;
+      font-weight: 700;
       padding: 10px 12px;
       background: var(--surface-tint);
       border-bottom: 1px solid var(--border);
@@ -315,12 +369,8 @@
       vertical-align: middle;
     }
     table tr:last-child td { border-bottom: 0; }
-    /* Zebra striping — alternate rows get a subtle slate tint so each
-       row is visually separate even when content density is high. */
     table tbody tr:nth-child(even) td { background: var(--surface-2); }
-    /* Hover wins over both white and striped rows — one shade darker
-       than the stripe (slate-200) so it's unambiguous. */
-    table tbody tr:hover td { background: #e2e8f0; }
+    table:not(.adm-tbl) tbody tr:hover td { background: #e2e8f0; }
 
     /* ============================================================
        Badges / pills
@@ -443,24 +493,44 @@
     .text-xs { font-size: 12px; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
     @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* ============================================================
+       Dark-mode overrides (hardcoded values)
+       ============================================================ */
+    [data-theme="dark"] .msg.success { color: #6ee7b7; border-color: rgba(52, 211, 153, .3); }
+    [data-theme="dark"] .msg.info    { color: #93c5fd; border-color: rgba(96, 165, 250, .3); }
+    [data-theme="dark"] .msg.warning { color: #fcd34d; border-color: rgba(251, 191, 36, .3); }
+    [data-theme="dark"] .msg.error   { color: #fca5a5; border-color: rgba(248, 113, 113, .3); }
+    [data-theme="dark"] table:not(.adm-tbl) tbody tr:hover td { background: #283548; }
+    [data-theme="dark"] .field input:focus,
+    [data-theme="dark"] .field select:focus,
+    [data-theme="dark"] .field textarea:focus {
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, .2);
+    }
+    [data-theme="dark"] .field select {
+      background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 20 20' fill='%2394a3b8'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E");
+    }
+    [data-theme="dark"] .btn-primary:hover { box-shadow: 0 4px 12px rgba(96, 165, 250, .3); }
+    [data-theme="dark"] .btn-accent:hover  { box-shadow: 0 4px 12px rgba(224, 173, 90, .3); }
+    [data-theme="dark"] .btn-danger:hover  { box-shadow: 0 4px 12px rgba(248, 113, 113, .3); }
+    [data-theme="dark"] .health-banner.ok       { color: #6ee7b7; border-color: rgba(52, 211, 153, .3); }
+    [data-theme="dark"] .health-banner.degraded { color: #fca5a5; border-color: rgba(248, 113, 113, .3); }
+    [data-theme="dark"] .error-detail            { color: #fca5a5; border-color: rgba(248, 113, 113, .3); }
+    [data-theme="dark"] .non-field-errors         { color: #fca5a5; border-color: rgba(248, 113, 113, .3); }
+    [data-theme="dark"] .stripe-banner            { color: #fcd34d; border-color: rgba(251, 191, 36, .3); }
+
+    .theme-transition,
+    .theme-transition *,
+    .theme-transition *::before,
+    .theme-transition *::after {
+      transition: background-color .3s, color .2s, border-color .3s, box-shadow .3s !important;
+      transition-delay: 0s !important;
+    }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
   {% block layout %}{% endblock %}
-<script>
-(function(){
-  var key='_scroll_'+location.pathname+location.search;
-  var raw=sessionStorage.getItem(key);
-  if(raw){
-    var data=JSON.parse(raw);
-    if(Date.now()-data.t<5000){window.scrollTo(0,data.y);}
-    sessionStorage.removeItem(key);
-  }
-  window.addEventListener('beforeunload',function(){
-    sessionStorage.setItem(key,JSON.stringify({y:window.scrollY,t:Date.now()}));
-  });
-})();
-</script>
+  <script src="{% static 'js/scroll_restore.js' %}"></script>
 </body>
 </html>

@@ -41,6 +41,29 @@
     outline: none; background: var(--surface); border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(12, 35, 64, .12);
   }
+  .ord-cell { display:flex;align-items:center;gap:12px;min-width:0; }
+  .ord-thumb {
+    position:relative;width:44px;height:44px;border-radius:8px;
+    background:var(--surface-2);border:1px solid var(--border);
+    color:var(--text-subtle);flex-shrink:0;overflow:hidden;
+  }
+  .ord-thumb-ph {
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .ord-thumb img {
+    position:absolute;inset:0;width:100%;height:100%;
+    object-fit:cover;background:var(--surface-2);display:block;
+  }
+  .ord-cell-info { display:flex;flex-direction:column;min-width:0;gap:1px;line-height:1.25; }
+  .ord-cell-name {
+    font-weight:600;color:var(--text);font-size:13px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;
+  }
+  .ord-cell-sub {
+    font-size:11px;color:var(--text-subtle);
+  }
+  td.ord-cell-pad { padding-top:10px;padding-bottom:10px; }
 </style>
 {% endblock %}
 
@@ -53,13 +76,13 @@
     <div><div class="label">Total orders</div><div class="value">{{ stats.total }}</div></div>
   </div>
   <div class="stat">
-    <div class="stat-icon accent">
+    <div class="stat-icon warning">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
     </div>
     <div><div class="label">Confirmed</div><div class="value">{{ stats.confirmed }}</div></div>
   </div>
   <div class="stat">
-    <div class="stat-icon warning">
+    <div class="stat-icon accent">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
     </div>
     <div><div class="label">In fulfillment</div><div class="value">{{ stats.fulfillment }}</div></div>
@@ -73,13 +96,19 @@
 </div>
 
 <div class="card">
+  {% if seller_obj %}
+    <div class="msg info" style="margin-bottom:var(--space-3);">
+      Showing orders for <strong>{{ seller_obj.tenant.name|default:seller_obj.email }}</strong>
+      <a href="{% url 'orders' %}" style="margin-left:8px;">Clear filter</a>
+    </div>
+  {% endif %}
   <div class="filter-bar">
     <div class="chips">
-      <a href="?{% if q %}q={{ q }}{% endif %}" class="chip {% if not status_filter %}active{% endif %}">
+      <a href="?{% if q %}q={{ q }}{% endif %}{% if seller_filter %}&seller={{ seller_filter }}{% endif %}" class="chip {% if not status_filter %}active{% endif %}">
         All <span class="count">{{ stats.total }}</span>
       </a>
       {% for bucket in status_buckets %}
-        <a href="?status={{ bucket.value }}{% if q %}&q={{ q }}{% endif %}"
+        <a href="?status={{ bucket.value }}{% if q %}&q={{ q }}{% endif %}{% if seller_filter %}&seller={{ seller_filter }}{% endif %}"
            class="chip {% if status_filter == bucket.value %}active{% endif %}">
           {{ bucket.label }} <span class="count">{{ bucket.count }}</span>
         </a>
@@ -88,32 +117,67 @@
     {% if role == 'admin' or role == 'auditor' %}
       <form method="get" class="inline-filters auto-search-form">
         {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+        {% if seller_filter %}<input type="hidden" name="seller" value="{{ seller_filter }}">{% endif %}
         <input type="search" name="q" value="{{ q }}" placeholder="Search by buyer email…" autocomplete="off">
       </form>
     {% endif %}
   </div>
+  {% if role == 'admin' and sellers_list %}
+    <div style="margin-bottom:var(--space-3);">
+      <form method="get" class="inline-filters" style="display:inline-flex;gap:8px;align-items:center;">
+        {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+        {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+        <select name="seller" style="padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;background:var(--surface-tint);color:var(--text);">
+          <option value="">All sellers</option>
+          {% for s in sellers_list %}
+            <option value="{{ s.id }}" {% if seller_filter == s.id|stringformat:"s" %}selected{% endif %}>{{ s.tenant.name|default:s.email }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+      </form>
+    </div>
+  {% endif %}
 
   {% if orders %}
     <table>
       <thead>
         <tr>
+          <th>Product</th>
           <th>Order</th>
           {% if role != 'buyer' %}<th>Buyer</th>{% endif %}
           {% if role == 'admin' or role == 'auditor' %}<th>Tenant</th>{% endif %}
           <th>Status</th>
           <th>Total</th>
-          <th>Placed</th>
+          <th>Age</th>
+          <th style="text-align:right;">Action</th>
         </tr>
       </thead>
       <tbody>
         {% for o in orders %}
           <tr>
-            <td><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></td>
-            {% if role != 'buyer' %}<td>{{ o.buyer.email }}</td>{% endif %}
+            {% with first_item=o.items.all.0 %}
+            <td class="ord-cell-pad">
+              <div class="ord-cell">
+                <span class="ord-thumb"><span class="ord-thumb-ph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></span>{% if first_item and first_item.product.primary_image %}<img src="{{ first_item.product.primary_image.url }}" alt="" data-fallback>{% endif %}</span>
+                <span class="ord-cell-info"><span class="ord-cell-name">{% if first_item %}{{ first_item.product.name }}{% else %}—{% endif %}</span>{% if o.items.all|length > 1 %}<span class="ord-cell-sub">+{{ o.items.all|length|add:"-1" }} more</span>{% endif %}</span>
+              </div>
+            </td>
+            {% endwith %}
+            <td><a href="{% url 'order_detail' o.id %}"><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></a></td>
+            {% if role != 'buyer' %}<td>{{ o.buyer.tenant.name|default:o.buyer.email }}</td>{% endif %}
             {% if role == 'admin' or role == 'auditor' %}<td>{{ o.tenant.name|default:"—" }}</td>{% endif %}
             <td><span class="pill {{ o.status }}">{{ o.get_status_display|default:o.status }}</span></td>
             <td><strong>${{ o.total_amount }}</strong></td>
-            <td class="muted">{{ o.created_at|date:"M j, Y H:i" }}</td>
+            <td>
+              <span class="muted">{{ o.status_changed_at|timesince }} ago</span>
+              {% if o.is_overdue %}<br><span class="pill" style="background:var(--danger-bg);color:var(--danger);margin-top:2px;">OVERDUE</span>{% endif %}
+            </td>
+            <td style="text-align:right;">
+              <a href="{% url 'order_detail' o.id %}" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                View
+              </a>
+            </td>
           </tr>
         {% endfor %}
       </tbody>

@@ -15,7 +15,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = (
             "id", "tenant", "seller", "sku", "name", "description",
-            "price", "attributes", "inventory_count", "status",
+            "price", "attributes", "inventory_count", "min_order_qty", "status",
             "primary_image_url",
             "created_at", "updated_at",
         )
@@ -81,7 +81,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         model = Product
         fields = (
             "id", "tenant", "seller", "sku", "name", "description",
-            "price", "attributes", "inventory_count", "status",
+            "price", "attributes", "inventory_count", "min_order_qty", "status",
             "primary_image_url", "images",
             "created_at", "updated_at",
         )

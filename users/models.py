@@ -8,10 +8,24 @@ from django.db import models
 
 class WorkflowTemplate(models.Model):
     class Vertical(models.TextChoices):
-        DENTAL = "dental", "Dental"
+        AUTOMOTIVE = "automotive", "Automotive"
         ARCHITECTURAL = "architectural", "Architectural"
-        DRY_CLEANING = "dry_cleaning", "Dry cleaning"
-        LAW_OFFICE = "law_office", "Law office"
+        CONSTRUCTION = "construction", "Construction"
+        DENTAL = "dental", "Dental"
+        DRY_CLEANING = "dry_cleaning", "Dry Cleaning"
+        EDUCATION = "education", "Education"
+        ELECTRONICS = "electronics", "Electronics"
+        FOOD_BEVERAGE = "food_beverage", "Food & Beverage"
+        HEALTHCARE = "healthcare", "Healthcare"
+        HOSPITALITY = "hospitality", "Hospitality"
+        LAW_OFFICE = "law_office", "Law Office"
+        LOGISTICS = "logistics", "Logistics & Shipping"
+        MANUFACTURING = "manufacturing", "Manufacturing"
+        REAL_ESTATE = "real_estate", "Real Estate"
+        RETAIL = "retail", "Retail"
+        TECHNOLOGY = "technology", "Technology"
+        TEXTILES = "textiles", "Textiles & Apparel"
+        WHOLESALE = "wholesale", "Wholesale"
         OTHER = "other", "Other"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -47,6 +61,13 @@ class Tenant(models.Model):
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.PENDING
     )
+    logo = models.ImageField(upload_to="tenant_logos/", blank=True, default="")
+    address_line1 = models.CharField(max_length=255, blank=True, default="")
+    address_line2 = models.CharField(max_length=255, blank=True, default="")
+    city = models.CharField(max_length=100, blank=True, default="")
+    state = models.CharField(max_length=100, blank=True, default="")
+    zip_code = models.CharField(max_length=20, blank=True, default="")
+    country = models.CharField(max_length=100, blank=True, default="US")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -90,6 +111,9 @@ class CustomUser(AbstractBaseUser):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
+    first_name = models.CharField(max_length=150, blank=True, default="")
+    last_name = models.CharField(max_length=150, blank=True, default="")
+    phone = models.CharField(max_length=30, blank=True, default="")
     auth0_sub = models.CharField(max_length=255, unique=True)
     role = models.CharField(max_length=16, choices=Role.choices)
     tenant = models.ForeignKey(

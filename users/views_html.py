@@ -6,6 +6,7 @@ These HTML views are independent and use Django's standard session login.
 
 from __future__ import annotations
 
+import datetime
 import logging
 import uuid
 
@@ -23,12 +24,15 @@ from django.utils import timezone
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.views.decorators.http import require_http_methods
+from django_ratelimit.decorators import ratelimit
 
+from notifications.tasks import send_password_reset_email
 from orders.models import Order
 from products.models import Product
 from users.forms import (
     ForgotPasswordForm,
     LoginForm,
+    ProfileForm,
     ResetPasswordForm,
     SignupForm,
 )
@@ -80,7 +84,7 @@ def signup_view(request):
         return redirect("dashboard")
 
     if request.method == "POST":
-        form = SignupForm(request.POST)
+        form = SignupForm(request.POST, request.FILES)
         if form.is_valid():
             data = form.cleaned_data
             with transaction.atomic():
@@ -89,6 +93,9 @@ def signup_view(request):
                     vertical_type=data["vertical_type"],
                     status=Tenant.Status.PENDING,
                 )
+                if data.get("logo"):
+                    tenant.logo = data["logo"]
+                    tenant.save(update_fields=["logo"])
                 user = CustomUser(
                     email=data["email"],
                     auth0_sub=f"local|{uuid.uuid4().hex}",
@@ -168,10 +175,10 @@ def logout_view(request):
 
 
 # ---------------------------------------------------------------------------
-# Forgot password — generates a token, prints the reset link to the log
-# (in real deployments, this becomes an email send via SES).
+# Forgot password — generates a token, emails the reset link via Celery
 # ---------------------------------------------------------------------------
 @require_http_methods(["GET", "POST"])
+@ratelimit(key="ip", rate=settings.AUTH_RATE_LIMIT, method="POST", block=True)
 def forgot_password_view(request):
     sent = False
     if request.method == "POST":
@@ -186,11 +193,7 @@ def forgot_password_view(request):
                     "reset_password", args=[uidb64, token]
                 )
                 full_url = request.build_absolute_uri(reset_path)
-                logger.warning(
-                    "Password reset link for %s: %s", user.email, full_url
-                )
-                # In prod: notifications.tasks.send_ses_email.delay(...)
-            # Always show the same message — don't leak whether the email exists.
+                send_password_reset_email.delay(user.email, full_url)
             sent = True
     else:
         form = ForgotPasswordForm()
@@ -222,8 +225,9 @@ def reset_password_view(request, uidb64: str, token: str):
         if form.is_valid():
             user.set_password(form.cleaned_data["password"])
             user.save(update_fields=["password", "updated_at"])
-            messages.success(request, "Password updated. You can sign in now.")
-            return redirect("login")
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+            messages.success(request, "Password updated successfully.")
+            return redirect("dashboard")
     else:
         form = ResetPasswordForm()
 
@@ -231,6 +235,83 @@ def reset_password_view(request, uidb64: str, token: str):
         "form": form,
         "invalid": False,
     })
+
+
+# ---------------------------------------------------------------------------
+# Change password — confirmation page + sends reset link via email
+# ---------------------------------------------------------------------------
+@login_required
+@require_http_methods(["GET", "POST"])
+def change_password_confirm(request):
+    if request.method == "POST":
+        user = request.user
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        reset_path = reverse("reset_password", args=[uidb64, token])
+        full_url = request.build_absolute_uri(reset_path)
+        send_password_reset_email.delay(user.email, full_url)
+        messages.success(request, "Password reset link sent to your email!")
+        return redirect("dashboard")
+    return render(request, "dashboard/change_password.html")
+
+
+# ---------------------------------------------------------------------------
+# Profile
+# ---------------------------------------------------------------------------
+@login_required
+@require_http_methods(["GET", "POST"])
+def profile_view(request):
+    user = request.user
+    tenant = user.tenant
+
+    def _profile_initial():
+        init = {
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "phone": user.phone,
+            "email": user.email,
+            "business_name": tenant.name if tenant else "",
+        }
+        if tenant:
+            init.update({
+                "address_line1": tenant.address_line1,
+                "address_line2": tenant.address_line2,
+                "city": tenant.city,
+                "state": tenant.state,
+                "zip_code": tenant.zip_code,
+                "country": tenant.country,
+            })
+        return init
+
+    if request.method == "POST":
+        form = ProfileForm(request.POST, request.FILES, user=user)
+        if form.is_valid():
+            data = form.cleaned_data
+            user.first_name = data["first_name"]
+            user.last_name = data["last_name"]
+            user.phone = data["phone"]
+            user.email = data["email"]
+            user.save(update_fields=[
+                "first_name", "last_name", "phone", "email", "updated_at",
+            ])
+            if tenant:
+                if data["business_name"]:
+                    tenant.name = data["business_name"]
+                if data.get("logo"):
+                    tenant.logo = data["logo"]
+                tenant.address_line1 = data["address_line1"]
+                tenant.address_line2 = data["address_line2"]
+                tenant.city = data["city"]
+                tenant.state = data["state"]
+                tenant.zip_code = data["zip_code"]
+                tenant.country = data["country"]
+                tenant.save()
+            messages.success(request, "Profile updated.")
+            return redirect("profile")
+    else:
+        form = ProfileForm(user=user, initial=_profile_initial())
+
+    return render(request, "dashboard/profile.html", {"form": form})
 
 
 # ---------------------------------------------------------------------------
@@ -335,16 +416,101 @@ def dashboard_view(request):
         ctx["order_status_labels_json"] = json.dumps(list(order_status_counts.keys()))
         ctx["order_status_data_json"] = json.dumps(list(order_status_counts.values()))
     elif user.role == CustomUser.Role.ADMIN:
+        import json
+        from datetime import timedelta
+        from decimal import Decimal
+        from django.db.models.functions import TruncDate
+        from orders.models import OrderItem
+
+        all_orders = Order.objects.all()
+        all_users = CustomUser.objects.all()
+        all_products = Product.objects.all()
+
+        ctx["total_users"] = all_users.count()
+        ctx["total_products"] = all_products.count()
+        ctx["total_orders"] = all_orders.count()
+        ctx["total_revenue"] = float(
+            all_orders.filter(status__in=[
+                Order.Status.DELIVERED, Order.Status.CLOSED,
+            ]).aggregate(t=models.Sum("total_amount"))["t"] or 0
+        )
+
+        ctx["buyers_count"] = all_users.filter(role=CustomUser.Role.BUYER).count()
+        ctx["sellers_count"] = all_users.filter(role=CustomUser.Role.SELLER).count()
+        ctx["active_users"] = all_users.filter(status=CustomUser.Status.ACTIVE).count()
+        ctx["pending_users"] = all_users.filter(status=CustomUser.Status.PENDING).count()
+        ctx["suspended_users"] = all_users.filter(status=CustomUser.Status.SUSPENDED).count()
+
+        ctx["active_products"] = all_products.filter(status=Product.Status.ACTIVE).count()
+        ctx["low_stock_products"] = all_products.filter(
+            status=Product.Status.ACTIVE, inventory_count__lt=5
+        ).count()
+
+        order_status_counts = {}
+        for s in Order.Status:
+            c = all_orders.filter(status=s.value).count()
+            if c > 0:
+                order_status_counts[s.label] = c
+        ctx["order_status_labels_json"] = json.dumps(list(order_status_counts.keys()))
+        ctx["order_status_data_json"] = json.dumps(list(order_status_counts.values()))
+
+        today = timezone.now().date()
+        days_7_ago = today - timedelta(days=6)
+        daily_revenue_qs = (
+            all_orders
+            .filter(created_at__date__gte=days_7_ago)
+            .annotate(day=TruncDate("created_at"))
+            .values("day")
+            .annotate(total=models.Sum("total_amount"))
+            .order_by("day")
+        )
+        daily_map = {row["day"]: float(row["total"] or 0) for row in daily_revenue_qs}
+        daily_orders_qs = (
+            all_orders
+            .filter(created_at__date__gte=days_7_ago)
+            .annotate(day=TruncDate("created_at"))
+            .values("day")
+            .annotate(count=models.Count("id"))
+            .order_by("day")
+        )
+        daily_orders_map = {row["day"]: row["count"] for row in daily_orders_qs}
+        revenue_labels, revenue_data, orders_data = [], [], []
+        for i in range(7):
+            d = days_7_ago + timedelta(days=i)
+            revenue_labels.append(d.strftime("%b %d"))
+            revenue_data.append(daily_map.get(d, 0))
+            orders_data.append(daily_orders_map.get(d, 0))
+        ctx["revenue_labels_json"] = json.dumps(revenue_labels)
+        ctx["revenue_data_json"] = json.dumps(revenue_data)
+        ctx["orders_data_json"] = json.dumps(orders_data)
+
+        role_dist = {}
+        for r in CustomUser.Role:
+            c = all_users.filter(role=r.value).count()
+            if c > 0:
+                role_dist[r.label] = c
+        ctx["role_labels_json"] = json.dumps(list(role_dist.keys()))
+        ctx["role_data_json"] = json.dumps(list(role_dist.values()))
+
         ctx["pending_members"] = list(
-            CustomUser.objects.filter(status=CustomUser.Status.PENDING)
-            .order_by("-created_at")[:10]
+            all_users.filter(status=CustomUser.Status.PENDING)
+            .select_related("tenant").order_by("-created_at")[:5]
         )
         ctx["recent_orders"] = list(
-            Order.objects.order_by("-created_at")[:10]
+            all_orders.select_related("buyer", "tenant").order_by("-created_at")[:8]
         )
-        ctx["total_users"] = CustomUser.objects.count()
-        ctx["total_products"] = Product.objects.count()
-        ctx["total_orders"] = Order.objects.count()
+        ctx["top_sellers"] = list(
+            CustomUser.objects.filter(role=CustomUser.Role.SELLER, status=CustomUser.Status.ACTIVE)
+            .annotate(
+                product_count=models.Count("products", filter=models.Q(products__status=Product.Status.ACTIVE)),
+                order_count=models.Count("sold_items__order", distinct=True),
+                revenue=models.Sum(
+                    models.F("sold_items__unit_price") * models.F("sold_items__quantity"),
+                    filter=models.Q(sold_items__order__status__in=[Order.Status.DELIVERED, Order.Status.CLOSED]),
+                ),
+            )
+            .order_by("-revenue")[:5]
+        )
     elif user.role == CustomUser.Role.AUDITOR:
         from core.models import AuditLog
         ctx["audit_events"] = list(
@@ -533,10 +699,18 @@ def seller_products_view(request):
 
     status_filter = request.GET.get("status", "").strip()
     query = request.GET.get("q", "").strip()
+    seller_filter = request.GET.get("seller", "").strip()
 
     base_qs = Product.objects.select_related("tenant", "seller")
     if user.role == CustomUser.Role.SELLER:
         base_qs = base_qs.filter(seller=user)
+
+    seller_obj = None
+    if seller_filter and user.role == CustomUser.Role.ADMIN:
+        seller_obj = CustomUser.objects.filter(pk=seller_filter).first()
+        if seller_obj:
+            base_qs = base_qs.filter(seller=seller_obj)
+
     products_qs = base_qs.order_by("-created_at")
 
     if status_filter == "low_stock":
@@ -559,6 +733,14 @@ def seller_products_view(request):
         elif status == Product.Status.INACTIVE:
             inactive += 1
 
+    sellers_list = None
+    if user.role == CustomUser.Role.ADMIN:
+        sellers_list = (
+            CustomUser.objects.filter(role=CustomUser.Role.SELLER, status=CustomUser.Status.ACTIVE)
+            .select_related("tenant")
+            .order_by("email")
+        )
+
     page = _paginate(request, products_qs)
     ctx = {
         "user": user,
@@ -569,15 +751,15 @@ def seller_products_view(request):
         "qs_prefix": _querystring_without_page(request),
         "status_filter": status_filter,
         "q": query,
+        "seller_filter": seller_filter,
+        "seller_obj": seller_obj,
+        "sellers_list": sellers_list,
         "stats": {
             "total": total,
             "active": active,
             "inactive": inactive,
             "low_stock": low_stock,
         },
-        # Sellers without a Stripe Connect account can't list products;
-        # surface the blocker right at the top of the page. Suppressed when
-        # the gate flag is off (Stripe not yet provisioned in this env).
         "stripe_onboarding_required": (
             settings.STRIPE_GATE_ENABLED
             and user.role == CustomUser.Role.SELLER
@@ -620,6 +802,20 @@ def _product_writeable_or_redirect(request, *, require_owner=None):
         messages.error(request, "You can only edit your own products.")
         return redirect("seller_products")
     return None
+
+
+@login_required
+def admin_product_detail(request, product_id):
+    if request.user.role != CustomUser.Role.ADMIN:
+        return redirect("dashboard")
+    product = get_object_or_404(
+        Product.objects.select_related("seller", "seller__tenant", "tenant"),
+        pk=product_id,
+    )
+    return render(request, "dashboard/product_detail.html", {
+        "product": product,
+        "attrs": product.attributes or {},
+    })
 
 
 @login_required
@@ -746,6 +942,7 @@ def orders_view(request):
 
     status_filter = request.GET.get("status", "").strip()
     query = request.GET.get("q", "").strip()
+    seller_filter = request.GET.get("seller", "").strip()
 
     if user.role == CustomUser.Role.BUYER:
         base_qs = Order.objects.filter(buyer=user)
@@ -754,7 +951,13 @@ def orders_view(request):
     else:  # admin, auditor
         base_qs = Order.objects.all()
 
-    orders_qs = base_qs.select_related("buyer", "tenant").order_by("-created_at")
+    seller_obj = None
+    if seller_filter and user.role == CustomUser.Role.ADMIN:
+        seller_obj = CustomUser.objects.filter(pk=seller_filter).first()
+        if seller_obj:
+            base_qs = base_qs.filter(items__seller=seller_obj).distinct()
+
+    orders_qs = base_qs.select_related("buyer", "buyer__tenant", "tenant").prefetch_related("items__product").order_by("-created_at")
 
     if status_filter in Order.Status.values:
         orders_qs = orders_qs.filter(status=status_filter)
@@ -773,7 +976,22 @@ def orders_view(request):
         for value, label in Order.Status.choices
     ]
 
+    sellers_list = None
+    if user.role == CustomUser.Role.ADMIN:
+        sellers_list = (
+            CustomUser.objects.filter(role=CustomUser.Role.SELLER, status=CustomUser.Status.ACTIVE)
+            .select_related("tenant")
+            .order_by("email")
+        )
+
     page = _paginate(request, orders_qs)
+    overdue_cutoff = timezone.now() - datetime.timedelta(hours=48)
+    for o in page.object_list:
+        o.is_overdue = (
+            o.status in (Order.Status.CONFIRMED, Order.Status.FULFILLMENT)
+            and o.status_changed_at
+            and o.status_changed_at <= overdue_cutoff
+        )
     ctx = {
         "user": user,
         "role": user.role,
@@ -783,6 +1001,9 @@ def orders_view(request):
         "qs_prefix": _querystring_without_page(request),
         "status_filter": status_filter,
         "q": query,
+        "seller_filter": seller_filter,
+        "seller_obj": seller_obj,
+        "sellers_list": sellers_list,
         "stats": {
             "total": total,
             "confirmed": status_counts.get(Order.Status.CONFIRMED, 0),
@@ -850,8 +1071,15 @@ def admin_members_view(request):
     role_filter = request.GET.get("role", "").strip()
     query = request.GET.get("q", "").strip()
 
+    admin_first = models.Case(
+        models.When(role=CustomUser.Role.ADMIN, then=0),
+        default=1,
+        output_field=models.IntegerField(),
+    )
     members_qs = (
-        CustomUser.objects.select_related("tenant").order_by("-created_at")
+        CustomUser.objects.select_related("tenant")
+        .annotate(_admin_first=admin_first)
+        .order_by("_admin_first", "-created_at")
     )
     if status_filter in CustomUser.Status.values:
         members_qs = members_qs.filter(status=status_filter)
@@ -888,6 +1116,73 @@ def admin_members_view(request):
         "role_choices": CustomUser.Role.choices,
     }
     return render(request, "dashboard/members.html", ctx)
+
+
+# ---------------------------------------------------------------------------
+# Admin: member detail — full profile + stats dashboard
+# ---------------------------------------------------------------------------
+@login_required
+def admin_member_detail(request, member_id):
+    if request.user.role != CustomUser.Role.ADMIN:
+        return redirect("dashboard")
+
+    member = get_object_or_404(
+        CustomUser.objects.select_related("tenant"), pk=member_id
+    )
+    tenant = member.tenant
+    ctx = {"member": member, "tenant": tenant}
+
+    if member.role == CustomUser.Role.SELLER:
+        products = Product.objects.filter(seller=member)
+        seller_orders = Order.objects.filter(items__seller=member).distinct()
+
+        ctx["products_total"] = products.count()
+        ctx["products_active"] = products.filter(
+            status=Product.Status.ACTIVE
+        ).count()
+        ctx["products_inactive"] = products.filter(
+            status=Product.Status.INACTIVE
+        ).count()
+        ctx["low_stock"] = products.filter(
+            status=Product.Status.ACTIVE, inventory_count__lt=5
+        ).count()
+
+        ctx["orders_total"] = seller_orders.count()
+        ctx["orders_pending"] = seller_orders.filter(
+            status__in=[Order.Status.CONFIRMED, Order.Status.FULFILLMENT]
+        ).count()
+        ctx["orders_fulfilled"] = seller_orders.filter(
+            status__in=[Order.Status.DELIVERED, Order.Status.CLOSED]
+        ).count()
+        ctx["revenue"] = (
+            seller_orders.filter(
+                status__in=[Order.Status.DELIVERED, Order.Status.CLOSED]
+            ).aggregate(total=models.Sum("total_amount"))["total"]
+        ) or 0
+
+        ctx["recent_orders"] = seller_orders.select_related(
+            "buyer", "tenant"
+        ).prefetch_related("items__product").order_by("-created_at")[:5]
+        ctx["top_products"] = products.filter(
+            status=Product.Status.ACTIVE
+        ).order_by("-inventory_count")[:5]
+
+    elif member.role == CustomUser.Role.BUYER:
+        buyer_orders = Order.objects.filter(buyer=member)
+        ctx["orders_total"] = buyer_orders.count()
+        ctx["orders_pending"] = buyer_orders.filter(
+            status__in=[Order.Status.CONFIRMED, Order.Status.FULFILLMENT]
+        ).count()
+        ctx["total_spent"] = (
+            buyer_orders.filter(
+                status__in=[Order.Status.DELIVERED, Order.Status.CLOSED]
+            ).aggregate(total=models.Sum("total_amount"))["total"]
+        ) or 0
+        ctx["recent_orders"] = buyer_orders.select_related(
+            "tenant"
+        ).prefetch_related("items__product").order_by("-created_at")[:5]
+
+    return render(request, "dashboard/member_detail.html", ctx)
 
 
 def _safe_redirect(request, fallback_url_name: str) -> HttpResponseRedirect:
@@ -941,3 +1236,100 @@ def admin_suspend_member(request, member_id):
     member.save(update_fields=["status", "updated_at"])
     messages.warning(request, f"Suspended {member.email}.")
     return _safe_redirect(request, "dashboard")
+
+
+# ---------------------------------------------------------------------------
+# Order detail + status transitions
+# ---------------------------------------------------------------------------
+@login_required
+def order_detail_view(request, order_id):
+    user = request.user
+    if user.status != CustomUser.Status.ACTIVE:
+        return redirect("pending_approval")
+
+    order = get_object_or_404(
+        Order.objects.select_related("buyer", "buyer__tenant", "tenant"),
+        pk=order_id,
+    )
+
+    if user.role == CustomUser.Role.BUYER and order.buyer_id != user.id:
+        return redirect("orders")
+    if user.role == CustomUser.Role.SELLER:
+        if not order.items.filter(seller=user).exists():
+            return redirect("orders")
+
+    items = order.items.select_related("product", "seller", "seller__tenant").order_by("product__name")
+
+    from orders.state import TRANSITIONS
+    allowed = TRANSITIONS.get(order.status, set()) - {Order.Status.CANCELLED}
+
+    STATUS_ORDER = [
+        Order.Status.DRAFT,
+        Order.Status.CONFIRMED,
+        Order.Status.FULFILLMENT,
+        Order.Status.SHIPPED,
+        Order.Status.DELIVERED,
+        Order.Status.CLOSED,
+    ]
+    timeline = []
+    current_idx = STATUS_ORDER.index(order.status) if order.status in STATUS_ORDER else -1
+    for i, s in enumerate(STATUS_ORDER):
+        if i < current_idx:
+            state = "done"
+        elif i == current_idx:
+            state = "current"
+        else:
+            state = "upcoming"
+        timeline.append({"status": s, "label": dict(Order.Status.choices).get(s, s), "state": state})
+
+    can_cancel = Order.Status.CANCELLED in TRANSITIONS.get(order.status, set())
+    activity_logs = order.activity_logs.select_related("actor")
+
+    ctx = {
+        "user": user,
+        "role": user.role,
+        "order": order,
+        "items": items,
+        "timeline": timeline,
+        "allowed_next": sorted(allowed),
+        "can_cancel": can_cancel,
+        "status_labels": dict(Order.Status.choices),
+        "activity_logs": activity_logs,
+    }
+    return render(request, "dashboard/order_detail.html", ctx)
+
+
+@login_required
+@require_http_methods(["POST"])
+def order_transition_view(request, order_id):
+    user = request.user
+    order = get_object_or_404(Order, pk=order_id)
+
+    if user.role == CustomUser.Role.BUYER and order.buyer_id != user.id:
+        return redirect("orders")
+    if user.role == CustomUser.Role.SELLER:
+        if not order.items.filter(seller=user).exists():
+            return redirect("orders")
+    if user.role == CustomUser.Role.AUDITOR:
+        messages.error(request, "Auditors cannot change order status.")
+        return redirect("order_detail", order_id=order_id)
+
+    target = request.POST.get("status", "").strip()
+    note = request.POST.get("note", "").strip()
+    if not target:
+        messages.error(request, "No target status provided.")
+        return redirect("order_detail", order_id=order_id)
+
+    from orders.services import transition_order
+    from orders.state import InvalidTransitionError
+
+    try:
+        transition_order(order=order, target_status=target, actor=user, note=note)
+        label = dict(Order.Status.choices).get(target, target)
+        messages.success(request, f"Order moved to {label}.")
+    except InvalidTransitionError:
+        messages.error(request, f"Cannot transition from {order.status} to {target}.")
+    except Exception as exc:
+        messages.error(request, f"Transition failed: {exc}")
+
+    return redirect("order_detail", order_id=order_id)

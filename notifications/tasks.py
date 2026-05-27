@@ -65,6 +65,67 @@ def send_suspension_email(user_email: str) -> None:
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
+def send_new_order_notification(self, seller_email: str, order_id: str, total: str) -> None:
+    """Notify seller about a new confirmed order."""
+    try:
+        send_mail(
+            subject=f"New order #{order_id[:8]} — Action required",
+            message=(
+                f"You have a new order (#{order_id[:8]}) worth ${total}.\n\n"
+                "Please fulfill it within 48 hours to avoid escalation.\n\n"
+                "Log in to your NEPA Unite dashboard to view and process this order."
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[seller_email],
+            fail_silently=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("send_new_order_notification retrying: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+def send_order_status_email(self, seller_email: str, order_id: str, new_status: str, note: str = "") -> None:
+    """Notify seller when admin changes order status."""
+    try:
+        body = f"Order #{order_id[:8]} has been moved to: {new_status}."
+        if note:
+            body += f"\n\nAdmin note: {note}"
+        send_mail(
+            subject=f"Order #{order_id[:8]} — Status update: {new_status}",
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[seller_email],
+            fail_silently=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("send_order_status_email retrying: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+def send_password_reset_email(self, to_email: str, reset_url: str) -> None:
+    """Send a password-reset link to the user."""
+    try:
+        send_mail(
+            subject="Reset your NEPA Unite password",
+            message=(
+                "We received a request to reset the password for your "
+                f"NEPA Unite account ({to_email}).\n\n"
+                f"Click the link below to set a new password:\n{reset_url}\n\n"
+                "This link will expire shortly. If you didn't request a "
+                "password reset, you can safely ignore this email."
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[to_email],
+            fail_silently=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("send_password_reset_email retrying after error: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def send_ses_email(self, to_email: str, subject: str, body: str) -> None:
     """Send an email via AWS SES (or Django's configured EMAIL_BACKEND).
 

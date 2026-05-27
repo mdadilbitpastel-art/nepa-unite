@@ -193,7 +193,7 @@
           <tr class="member-row">
             <td>
               <div class="email-cell">
-                <div class="avatar">{{ m.email|slice:":1" }}</div>
+                <div class="avatar">{% if m.role == 'admin' %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>{% elif m.tenant and m.tenant.logo %}<img src="{{ m.tenant.logo.url }}" alt="" data-fallback style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</div>
                 <div>
                   {{ m.email }}
                   {% if m.id == user.id %}<span class="self-badge">You</span>{% endif %}
@@ -206,6 +206,12 @@
             <td class="muted">{{ m.created_at|date:"M j, Y" }}</td>
             <td>
               <div class="row-actions">
+                {% if m.role != 'admin' %}
+                <a href="{% url 'admin_member_detail' m.id %}" class="btn btn-secondary btn-sm" title="View details">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  View
+                </a>
+                {% endif %}
                 {% if m.id == user.id %}
                   <span class="muted text-xs">No actions on your own account</span>
                 {% elif m.status == 'pending' %}

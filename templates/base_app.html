@@ -17,7 +17,7 @@
      Sidebar
      ============================================================ */
   .app-sidebar {
-    background: var(--primary);
+    background: var(--sidebar-bg);
     color: #e2e8f0;
     padding: 22px 16px;
     display: flex;
@@ -71,6 +71,7 @@
     text-transform: uppercase;
     font-size: 13px;
     flex-shrink: 0;
+    overflow: hidden;
   }
   .user-card .user-meta { line-height: 1.3; min-width: 0; flex: 1; }
   .user-card .user-email {
@@ -97,7 +98,7 @@
      ============================================================ */
   .app-main {
     background: var(--bg);
-    padding: 28px 32px 56px 32px;
+    padding: 24px 32px 24px 32px;
     max-width: 1280px;
     width: 100%;
     margin: 0 auto;
@@ -107,7 +108,7 @@
   }
   .app-topbar {
     display: none;
-    background: var(--primary);
+    background: var(--sidebar-bg);
     color: #fff;
     padding: 14px 18px;
     align-items: center;
@@ -134,8 +135,8 @@
     border-bottom:1px solid var(--border);
   }
   .profile-bar-title {
-    font-size:24px;font-weight:700;color:var(--text);
-    line-height:1.2;
+    font-size:30px;font-weight:700;color:var(--text);
+    line-height:1.2;text-transform:uppercase;letter-spacing:.5px;
   }
   .profile-bar-right {
     display:flex;align-items:center;gap:14px;
@@ -152,22 +153,23 @@
   .profile-dropdown-wrap { position:relative; }
   .profile-trigger {
     width:36px;height:36px;border-radius:50%;
-    background:var(--primary);
-    color:#fff;
+    background:var(--profile-bg);
+    color:var(--profile-text);
     display:flex;align-items:center;justify-content:center;
     font-weight:700;font-size:14px;cursor:pointer;text-transform:uppercase;
-    transition:box-shadow .15s;
+    transition:background-color .3s,color .2s,box-shadow .15s;
+    overflow:hidden;
   }
-  .profile-trigger:hover { box-shadow:0 0 0 3px rgba(12,35,64,.15); }
+  .profile-trigger:hover { box-shadow:var(--profile-hover-shadow); }
   .profile-dropdown-wrap:hover .profile-dropdown,
   .profile-dropdown-wrap:focus-within .profile-dropdown { opacity:1;visibility:visible;transform:translateY(0); }
   .profile-dropdown {
     position:absolute;top:calc(100% + 8px);right:0;z-index:100;
     min-width:240px;padding:0;
-    background:var(--primary);border:1px solid rgba(255,255,255,.1);
+    background:var(--profile-bg);border:1px solid var(--profile-border);
     border-radius:var(--radius-lg,10px);box-shadow:0 8px 24px rgba(0,0,0,.3);
     opacity:0;visibility:hidden;transform:translateY(-6px);
-    transition:opacity .15s,visibility .15s,transform .15s;
+    transition:opacity .15s,visibility .15s,transform .15s,background-color .3s,border-color .3s;
   }
   .profile-dropdown-header {
     padding:20px 18px 16px;
@@ -178,15 +180,18 @@
     background:var(--accent);color:#1a1208;
     display:flex;align-items:center;justify-content:center;
     font-weight:700;font-size:16px;text-transform:uppercase;
+    overflow:hidden;
   }
   .profile-dropdown-info { min-width:0;flex:1; }
   .profile-dropdown-business {
-    font-size:14px;font-weight:700;color:#fff;
+    font-size:14px;font-weight:700;color:var(--profile-text-strong);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    transition:color .2s;
   }
   .profile-dropdown-email {
-    font-size:12px;color:#94a3b8;margin-top:2px;
+    font-size:12px;color:var(--profile-text-secondary);margin-top:2px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    transition:color .2s;
   }
   .profile-dropdown-badge {
     display:inline-block;
@@ -197,17 +202,66 @@
   .profile-dropdown-badge.role-admin { background:var(--primary-soft);color:var(--primary); }
   .profile-dropdown-badge.role-auditor { background:#ede9fe;color:#6d28d9; }
   .profile-dropdown-badge.role-buyer { background:#ecfdf5;color:#047857; }
-  .profile-dropdown-divider { height:1px;background:rgba(255,255,255,.08);margin:0; }
+  .profile-dropdown-divider { height:1px;background:var(--profile-divider);margin:0;transition:background-color .3s; }
   .profile-dropdown-links { padding:6px 0; }
   .profile-dropdown-link {
     display:flex;align-items:center;gap:10px;width:100%;
     padding:10px 18px;background:none;border:none;
-    font-size:13px;font-weight:500;color:#cbd5e1;
+    font-size:13px;font-weight:500;color:var(--profile-link);
     cursor:pointer;font-family:inherit;text-decoration:none;
     transition:background-color .12s,color .12s;
   }
-  .profile-dropdown-link:hover { background:rgba(255,255,255,.06);color:#fff;text-decoration:none; }
-  .profile-dropdown-link.danger:hover { color:#f87171; }
+  .profile-dropdown-link:hover { background:var(--profile-link-hover-bg);color:var(--profile-link-hover);text-decoration:none; }
+  .profile-dropdown-footer {
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 18px;
+  }
+  .profile-signout-btn {
+    display:inline-flex;align-items:center;gap:6px;
+    padding:6px 14px;border-radius:var(--radius-sm);
+    font-size:12px;font-weight:600;font-family:inherit;
+    background:transparent;color:var(--profile-link);
+    border:1px solid var(--profile-divider);
+    cursor:pointer;transition:all .18s ease;
+  }
+  .profile-signout-btn:hover {
+    background:var(--profile-text);color:var(--profile-bg);
+    border-color:var(--profile-text);
+    transform:translateY(-1px);
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+  }
+
+  .theme-toggle {
+    display:flex;align-items:center;gap:9px;
+    padding:9px 12px;border-radius:8px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.08);
+    color:#94a3b8;cursor:pointer;
+    font-size:13px;font-weight:500;font-family:inherit;
+    transition:background-color .12s,color .12s;
+    width:100%;
+  }
+  .theme-toggle:hover { background:rgba(255,255,255,.1);color:#fff; }
+  .theme-toggle svg { flex-shrink:0; }
+  .theme-toggle .theme-icon-sun,
+  .theme-toggle .theme-label-light { display:none; }
+  [data-theme="dark"] .theme-toggle .theme-icon-sun,
+  [data-theme="dark"] .theme-toggle .theme-label-light { display:inline; }
+  [data-theme="dark"] .theme-toggle .theme-icon-moon,
+  [data-theme="dark"] .theme-toggle .theme-label-dark { display:none; }
+
+  .topbar-theme-toggle {
+    display:inline-flex;align-items:center;justify-content:center;
+    width:34px;height:34px;border-radius:7px;
+    background:transparent;border:1px solid rgba(255,255,255,.18);
+    color:#cbd5e1;cursor:pointer;
+    transition:background-color .12s,color .12s;
+  }
+  .topbar-theme-toggle:hover { background:rgba(255,255,255,.06);color:#fff; }
+  .topbar-theme-toggle .theme-icon-sun { display:none; }
+  [data-theme="dark"] .topbar-theme-toggle .theme-icon-sun { display:inline; }
+  [data-theme="dark"] .topbar-theme-toggle .theme-icon-moon { display:none; }
+
 </style>
 {% endblock %}
 
@@ -236,10 +290,10 @@
           Members
         </a>
       {% endif %}
-      {% if user.role == 'seller' %}
+      {% if user.role == 'seller' or user.role == 'admin' %}
         <a href="{% url 'seller_products' %}" class="nav-item {% if request.resolver_match.url_name == 'seller_products' %}active{% endif %}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 17l8 4 8-4"/></svg>
-          My products
+          {% if user.role == 'admin' %}Products{% else %}My products{% endif %}
         </a>
       {% endif %}
       <a href="{% url 'orders' %}" class="nav-item {% if request.resolver_match.url_name == 'orders' %}active{% endif %}">
@@ -266,9 +320,16 @@
       </a>
     </div>
 
+    <button class="theme-toggle" data-theme-toggle aria-label="Toggle theme">
+      <svg class="theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      <svg class="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      <span class="theme-label-dark">Dark mode</span>
+      <span class="theme-label-light">Light mode</span>
+    </button>
+
     <div class="user-card">
       <div class="row" style="align-items: center; gap: 10px;">
-        <div class="avatar">{{ user.email|slice:":1" }}</div>
+        <div class="avatar">{% if user.role == 'admin' %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>{% elif user.tenant and user.tenant.logo %}<img src="{{ user.tenant.logo.url }}" alt="" data-fallback style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</div>
         <div class="user-meta">
           <div class="user-email">{{ user.email }}</div>
           <div class="user-role">{{ user.get_role_display|default:user.role }}</div>
@@ -291,7 +352,11 @@
         </svg>
         <span class="brand-text">NEPA <span class="brand-text-secondary">Unite</span></span>
       </a>
-      <div class="topbar-actions">
+      <div class="topbar-actions" style="display:flex;align-items:center;gap:8px;">
+        <button class="topbar-theme-toggle" data-theme-toggle aria-label="Toggle theme">
+          <svg class="theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          <svg class="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
         <form method="post" action="{% url 'logout' %}">
           {% csrf_token %}
           <button type="submit">Sign out</button>
@@ -308,22 +373,33 @@
             <div class="profile-bar-role">{{ user.get_role_display|default:user.role }}{% if user.tenant %} &middot; {{ user.tenant.name }}{% endif %}</div>
           </div>
           <div class="profile-dropdown-wrap">
-            <div class="profile-trigger">{{ user.email|slice:":1" }}</div>
+            <div class="profile-trigger">{% if user.role == 'admin' %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>{% elif user.tenant and user.tenant.logo %}<img src="{{ user.tenant.logo.url }}" alt="" data-fallback style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</div>
             <div class="profile-dropdown">
               <div class="profile-dropdown-header">
-                <div class="profile-dropdown-avatar">{{ user.email|slice:":1" }}</div>
+                <div class="profile-dropdown-avatar">{% if user.role == 'admin' %}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>{% elif user.tenant and user.tenant.logo %}<img src="{{ user.tenant.logo.url }}" alt="" data-fallback style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</div>
                 <div class="profile-dropdown-info">
                   <div class="profile-dropdown-business">{{ user.tenant.name|default:"NEPA Unite" }}</div>
                   <div class="profile-dropdown-email">{{ user.email }}</div>
                 </div>
               </div>
               <div class="profile-dropdown-divider"></div>
-              <div class="profile-dropdown-links" style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;">
+              <div class="profile-dropdown-links">
+                <a href="{% url 'profile' %}" class="profile-dropdown-link">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  Edit Profile
+                </a>
+                <a href="{% url 'change_password_confirm' %}" class="profile-dropdown-link">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  Change Password
+                </a>
+              </div>
+              <div class="profile-dropdown-divider"></div>
+              <div class="profile-dropdown-footer">
                 <div class="profile-dropdown-badge role-{{ user.role }}">{{ user.get_role_display|default:user.role }}</div>
                 <form method="post" action="{% url 'logout' %}" style="margin:0;">
                   {% csrf_token %}
-                  <button type="submit" class="profile-dropdown-link danger" style="padding:6px 12px;width:auto;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  <button type="submit" class="profile-signout-btn">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                     Sign out
                   </button>
                 </form>
@@ -350,4 +426,5 @@
 <script src="{% static 'js/confirms.js' %}" defer></script>
 <script src="{% static 'js/image_preview.js' %}" defer></script>
 <script src="{% static 'js/image_fallback.js' %}" defer></script>
+{% block extra_js %}{% endblock %}
 {% endblock %}

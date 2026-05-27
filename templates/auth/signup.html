@@ -1,4 +1,5 @@
 {% extends "base_auth.html" %}
+{% load static %}
 {% block title %}Create account · NEPA Unite{% endblock %}
 {% block auth_hero_title %}Join the NEPA Unite network.{% endblock %}
 {% block auth_hero_lede %}
@@ -7,30 +8,26 @@
 {% endblock %}
 
 {% block auth_content %}
-  <h1>Create your account</h1>
-  <p class="auth-sub">Pick your role — an admin will approve your access.</p>
+  <h1>Create Your Seller Account</h1>
+  <p class="auth-sub" style="margin-bottom:8px;">Fill in your details — an admin will approve your access.</p>
 
-  <form method="post" novalidate>
+  <form method="post" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
 
-    <div class="field">
-      <label for="{{ form.email.id_for_label }}">Business email</label>
-      {{ form.email }}
-      {% if form.email.errors %}<ul class="errors">{% for e in form.email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-    </div>
-
-    <div class="grid-2">
-      <div class="field">
-        <label for="{{ form.password.id_for_label }}">Password</label>
-        {{ form.password }}
-        {% if form.password.errors %}<ul class="errors">{% for e in form.password.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-      </div>
-
-      <div class="field">
-        <label for="{{ form.password_confirm.id_for_label }}">Confirm password</label>
-        {{ form.password_confirm }}
-        {% if form.password_confirm.errors %}<ul class="errors">{% for e in form.password_confirm.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-      </div>
+    <div class="su-logo-section">
+      <label for="id_logo" class="su-logo">
+        <span id="signupLogoPreview" class="su-logo-img" style="display:none;">
+          <img id="signupLogoImg" alt="">
+        </span>
+        <span id="signupLogoPlaceholder" class="su-logo-default">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>
+        </span>
+        <span class="su-logo-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </span>
+      </label>
+      <input type="file" name="logo" accept="image/*" id="id_logo">
+      <div class="su-logo-text">Company Logo <span class="muted">(optional)</span></div>
     </div>
 
     <div class="field">
@@ -39,33 +36,45 @@
       {% if form.business_name.errors %}<ul class="errors">{% for e in form.business_name.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
     </div>
 
-    <div class="grid-2">
-      <div class="field">
-        <label for="{{ form.role.id_for_label }}">I'm joining as</label>
-        {{ form.role }}
-        {% if form.role.errors %}<ul class="errors">{% for e in form.role.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-      </div>
+    <div class="field">
+      <label for="{{ form.email.id_for_label }}">Business email</label>
+      {{ form.email }}
+      {% if form.email.errors %}<ul class="errors">{% for e in form.email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
 
+    <div class="su-row">
       <div class="field">
-        <label for="{{ form.vertical_type.id_for_label }}">Industry</label>
-        {{ form.vertical_type }}
-        {% if form.vertical_type.errors %}<ul class="errors">{% for e in form.vertical_type.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        <label for="{{ form.password.id_for_label }}">Password</label>
+        {{ form.password }}
+        {% if form.password.errors %}<ul class="errors">{% for e in form.password.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="field">
+        <label for="{{ form.password_confirm.id_for_label }}">Confirm</label>
+        {{ form.password_confirm }}
+        {% if form.password_confirm.errors %}<ul class="errors">{% for e in form.password_confirm.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
       </div>
     </div>
 
-    {% if form.non_field_errors %}
-      <ul class="errors">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
-    {% endif %}
+    <div class="field">
+      <label for="{{ form.vertical_type.id_for_label }}">Industry</label>
+      {{ form.vertical_type }}
+      {% if form.vertical_type.errors %}<ul class="errors">{% for e in form.vertical_type.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
 
-    <div class="form-actions">
+    {% if form.logo.errors %}<ul class="errors">{% for e in form.logo.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    {% if form.non_field_errors %}<ul class="errors">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+
+    <div class="form-actions" style="margin-top:10px;">
       <button type="submit" class="btn btn-primary btn-block">
         Create account
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>
       </button>
     </div>
   </form>
 
-  <p class="auth-footer-links">
+  <p class="auth-footer-links" style="margin-top:10px;">
     Already have an account? <a href="{% url 'login' %}"><strong>Sign in</strong></a>
   </p>
+
+  <script src="{% static 'js/signup_logo.js' %}"></script>
 {% endblock %}

@@ -35,7 +35,16 @@ class Order(models.Model):
     total_amount = models.DecimalField(
         max_digits=12, decimal_places=2, default=Decimal("0.00")
     )
+    shipping_name = models.CharField(max_length=255, blank=True, default="")
+    shipping_phone = models.CharField(max_length=20, blank=True, default="")
+    shipping_address_line1 = models.CharField(max_length=255, blank=True, default="")
+    shipping_address_line2 = models.CharField(max_length=255, blank=True, default="")
+    shipping_city = models.CharField(max_length=100, blank=True, default="")
+    shipping_state = models.CharField(max_length=50, blank=True, default="")
+    shipping_zip = models.CharField(max_length=20, blank=True, default="")
+    buyer_notes = models.TextField(blank=True, default="")
     stripe_payment_intent_id = models.CharField(max_length=255, blank=True, default="")
+    status_changed_at = models.DateTimeField(auto_now_add=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -80,5 +89,30 @@ class OrderItem(models.Model):
         default=FulfillmentStatus.PENDING,
     )
 
+    @property
+    def line_total(self):
+        return self.unit_price * self.quantity
+
     class Meta:
         db_table = "orders_orderitem"
+
+
+class OrderActivityLog(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order = models.ForeignKey(
+        Order, on_delete=models.CASCADE, related_name="activity_logs"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="order_actions",
+    )
+    from_status = models.CharField(max_length=16, blank=True, default="")
+    to_status = models.CharField(max_length=16)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "orders_orderactivitylog"
+        ordering = ["-created_at"]

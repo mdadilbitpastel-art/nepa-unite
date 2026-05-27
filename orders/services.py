@@ -5,10 +5,12 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.db import transaction
+from django.utils import timezone
 
 from core.tasks import write_audit_log
 from notifications.service import notify_order_status_change
-from orders.models import Order, OrderItem
+from notifications.tasks import send_new_order_notification, send_order_status_email
+from orders.models import Order, OrderActivityLog, OrderItem
 from orders.state import assert_transition
 from products.inventory import (
     InsufficientInventoryError,
@@ -23,8 +25,18 @@ class OrderCreationError(Exception):
     pass
 
 
+REQUIRED_SHIPPING_FIELDS = [
+    "shipping_name",
+    "shipping_phone",
+    "shipping_address_line1",
+    "shipping_city",
+    "shipping_state",
+    "shipping_zip",
+]
+
+
 @transaction.atomic
-def create_order(*, buyer, items: list[dict]) -> Order:
+def create_order(*, buyer, items: list[dict], shipping: dict | None = None) -> Order:
     """Create an Order + OrderItems, reserving inventory as we go.
 
     Each item is {"product_id": str, "quantity": int}. We resolve each product
@@ -37,6 +49,11 @@ def create_order(*, buyer, items: list[dict]) -> Order:
     if not items:
         raise OrderCreationError("Order must contain at least one item.")
 
+    shipping = shipping or {}
+    missing = [f for f in REQUIRED_SHIPPING_FIELDS if not shipping.get(f, "").strip()]
+    if missing:
+        raise OrderCreationError(f"Missing required shipping fields: {', '.join(missing)}")
+
     products: dict[str, Product] = {}
     for entry in items:
         pid = entry.get("product_id")
@@ -48,7 +65,18 @@ def create_order(*, buyer, items: list[dict]) -> Order:
             raise OrderCreationError(f"Product {pid} is not active.")
         products[str(pid)] = product
 
-    order = Order.objects.create(buyer=buyer, tenant=buyer.tenant)
+    order = Order.objects.create(
+        buyer=buyer,
+        tenant=buyer.tenant,
+        shipping_name=shipping.get("shipping_name", "").strip(),
+        shipping_phone=shipping.get("shipping_phone", "").strip(),
+        shipping_address_line1=shipping.get("shipping_address_line1", "").strip(),
+        shipping_address_line2=shipping.get("shipping_address_line2", "").strip(),
+        shipping_city=shipping.get("shipping_city", "").strip(),
+        shipping_state=shipping.get("shipping_state", "").strip(),
+        shipping_zip=shipping.get("shipping_zip", "").strip(),
+        buyer_notes=shipping.get("buyer_notes", "").strip(),
+    )
 
     reserved: list[tuple[str, int]] = []
     total = Decimal("0.00")
@@ -58,9 +86,13 @@ def create_order(*, buyer, items: list[dict]) -> Order:
             qty = int(entry["quantity"])
             if qty <= 0:
                 raise OrderCreationError("Quantity must be positive.")
+            product = products[pid]
+            if qty < product.min_order_qty:
+                raise OrderCreationError(
+                    f"{product.name} requires a minimum order of {product.min_order_qty} units."
+                )
             reserve_inventory(pid, qty)
             reserved.append((pid, qty))
-            product = products[pid]
             OrderItem.objects.create(
                 order=order,
                 product=product,
@@ -91,7 +123,7 @@ def create_order(*, buyer, items: list[dict]) -> Order:
 
 
 @transaction.atomic
-def transition_order(*, order: Order, target_status: str, actor) -> Order:
+def transition_order(*, order: Order, target_status: str, actor, note: str = "") -> Order:
     """Move `order` to `target_status` if allowed; release inventory on cancel."""
     assert_transition(order.status, target_status)
 
@@ -101,28 +133,65 @@ def transition_order(*, order: Order, target_status: str, actor) -> Order:
                 release_inventory(str(item.product_id), item.quantity)
             except Exception:  # noqa: BLE001 - we still want to mark cancelled
                 pass
+        order.items.exclude(
+            fulfillment_status=OrderItem.FulfillmentStatus.CANCELLED
+        ).update(fulfillment_status=OrderItem.FulfillmentStatus.CANCELLED)
+
+    if target_status in (Order.Status.FULFILLMENT, Order.Status.SHIPPED,
+                         Order.Status.DELIVERED, Order.Status.CLOSED):
+        order.items.filter(
+            fulfillment_status=OrderItem.FulfillmentStatus.PENDING
+        ).update(fulfillment_status=OrderItem.FulfillmentStatus.FULFILLED)
 
     previous = order.status
     order.status = target_status
-    order.save(update_fields=["status", "updated_at"])
+    order.status_changed_at = timezone.now()
+    order.save(update_fields=["status", "status_changed_at", "updated_at"])
 
-    write_audit_log.delay(
-        actor_id=str(actor.pk) if actor else None,
-        action="order.status_transition",
-        entity_type="Order",
-        entity_id=str(order.pk),
-        payload={"from": previous, "to": target_status},
+    OrderActivityLog.objects.create(
+        order=order,
+        actor=actor,
+        from_status=previous,
+        to_status=target_status,
+        note=note,
     )
 
-    # Fire outgoing webhook + notifications.
-    emit_platform_event.delay(
-        event_type=f"order.{target_status}",
-        payload={"order_id": str(order.pk), "status": target_status},
+    order_pk = str(order.pk)
+    actor_pk = str(actor.pk) if actor else None
+    actor_role = getattr(actor, "role", "")
+    seller_emails = list(
+        order.items.values_list("seller__email", flat=True).distinct()
     )
-    notify_order_status_change(order=order, new_status=target_status)
+    order_total = str(order.total_amount)
 
-    # On delivery, queue invoice generation.
-    if target_status == Order.Status.DELIVERED:
-        from payments.tasks import generate_invoice_pdf
-        generate_invoice_pdf.delay(str(order.pk))
+    def _post_commit():
+        write_audit_log.delay(
+            actor_id=actor_pk,
+            action="order.status_transition",
+            entity_type="Order",
+            entity_id=order_pk,
+            payload={"from": previous, "to": target_status},
+        )
+        emit_platform_event.delay(
+            event_type=f"order.{target_status}",
+            payload={"order_id": order_pk, "status": target_status},
+        )
+        try:
+            notify_order_status_change(order=order, new_status=target_status)
+        except Exception:  # noqa: BLE001
+            pass
+        if target_status == Order.Status.CONFIRMED:
+            for email in seller_emails:
+                send_new_order_notification.delay(email, order_pk, order_total)
+        elif actor_role == "admin" and note:
+            for email in seller_emails:
+                send_order_status_email.delay(email, order_pk, target_status, note)
+        if target_status == Order.Status.DELIVERED:
+            try:
+                from payments.tasks import generate_invoice_pdf
+                generate_invoice_pdf.delay(order_pk)
+            except Exception:  # noqa: BLE001
+                pass
+
+    transaction.on_commit(_post_commit)
     return order

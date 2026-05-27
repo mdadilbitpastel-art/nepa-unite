@@ -30,6 +30,7 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     attributes = models.JSONField(default=dict, blank=True)
     inventory_count = models.IntegerField(default=0)
+    min_order_qty = models.PositiveIntegerField(default=1)
     # Primary listing image. Stored via DEFAULT_FILE_STORAGE — local
     # filesystem in dev, Cloudinary in prod (set CLOUDINARY_URL +
     # cloudinary_storage backend to swap; no code changes needed).

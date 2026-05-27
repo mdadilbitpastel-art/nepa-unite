@@ -22,6 +22,14 @@ class OrderItemInputSerializer(serializers.Serializer):
 
 class OrderCreateSerializer(serializers.Serializer):
     items = OrderItemInputSerializer(many=True, allow_empty=False)
+    shipping_name = serializers.CharField(max_length=255)
+    shipping_phone = serializers.CharField(max_length=20)
+    shipping_address_line1 = serializers.CharField(max_length=255)
+    shipping_address_line2 = serializers.CharField(max_length=255, required=False, default="")
+    shipping_city = serializers.CharField(max_length=100)
+    shipping_state = serializers.CharField(max_length=50)
+    shipping_zip = serializers.CharField(max_length=20)
+    buyer_notes = serializers.CharField(required=False, default="")
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -31,7 +39,11 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = (
             "id", "buyer", "tenant", "status", "total_amount",
-            "stripe_payment_intent_id", "items", "created_at", "updated_at",
+            "shipping_name", "shipping_phone",
+            "shipping_address_line1", "shipping_address_line2",
+            "shipping_city", "shipping_state", "shipping_zip",
+            "buyer_notes", "stripe_payment_intent_id",
+            "items", "created_at", "updated_at",
         )
         read_only_fields = fields
 

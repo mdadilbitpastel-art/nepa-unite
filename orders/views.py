@@ -70,10 +70,13 @@ class OrderViewSet(
     def create(self, request, *args, **kwargs):
         serializer = OrderCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        shipping = {k: vd[k] for k in vd if k.startswith("shipping_") or k == "buyer_notes"}
         try:
             order = create_order(
                 buyer=request.user,
-                items=serializer.validated_data["items"],
+                items=vd["items"],
+                shipping=shipping,
             )
         except OrderCreationError as exc:
             raise ValidationError(str(exc))

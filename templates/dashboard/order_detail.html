@@ -1,0 +1,282 @@
+{% extends "base_app.html" %}
+{% load static %}
+{% block title %}Order {{ order.id|stringformat:"s"|slice:":8" }}… · NEPA Unite{% endblock %}
+{% block header_title %}Order Details{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+  .od-back { margin-bottom:var(--space-2); }
+
+  .od-banner {
+    padding:10px 16px;border-radius:var(--radius-md);
+    display:flex;align-items:center;gap:8px;
+    margin-bottom:var(--space-3);font-weight:600;font-size:13px;
+  }
+  .od-banner.cancelled { background:var(--danger-bg);color:var(--danger);border:1px solid currentColor; }
+  .od-banner.closed { background:var(--success-bg);color:var(--success);border:1px solid currentColor; }
+
+  .od-product {
+    display:flex;gap:16px;padding:14px 18px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+    margin-bottom:var(--space-2);box-shadow:var(--shadow-sm);
+  }
+  .od-product-img {
+    width:96px;height:96px;border-radius:10px;flex-shrink:0;
+    background:var(--surface-2);border:1px solid var(--border);
+    overflow:hidden;position:relative;color:var(--text-subtle);
+  }
+  .od-product-img-ph { position:absolute;inset:0;display:flex;align-items:center;justify-content:center; }
+  .od-product-img img { position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block; }
+  .od-product-body { flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center; }
+  .od-product-name { font-size:16px;font-weight:700;color:var(--text);line-height:1.3; }
+  .od-product-sku { font-size:11px;color:var(--text-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:1px; }
+  .od-product-meta { display:flex;gap:14px;margin-top:8px;flex-wrap:wrap; }
+  .od-product-meta-item { display:flex;flex-direction:column; }
+  .od-product-meta-item .od-pm-label { font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);font-weight:700; }
+  .od-product-meta-item .od-pm-value { font-size:14px;font-weight:600;color:var(--text);margin-top:1px; }
+  .od-product-total { margin-left:auto;text-align:right;flex-shrink:0;align-self:center; }
+  .od-product-total .od-total-label { font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);font-weight:700; }
+  .od-product-total .od-total-value { font-size:20px;font-weight:700;color:var(--success);line-height:1.2; }
+  .od-product-total .od-total-status { margin-top:6px; }
+
+  .od-more-items {
+    font-size:11px;color:var(--text-muted);margin-top:6px;
+    padding:5px 10px;background:var(--surface-2);border-radius:var(--radius-sm);
+    display:inline-flex;align-items:center;gap:5px;
+  }
+
+  .od-grid { display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-2); }
+  @media (max-width:720px) { .od-grid { grid-template-columns:1fr; } }
+
+  .od-info-card {
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+    padding:12px 16px;box-shadow:var(--shadow-sm);
+  }
+  .od-info-title {
+    font-size:11px;text-transform:uppercase;letter-spacing:.8px;
+    color:var(--text-muted);font-weight:700;margin-bottom:8px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .od-info-row { display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border); }
+  .od-info-row:last-child { border-bottom:0; }
+  .od-info-row .od-il { font-size:12px;color:var(--text-muted); }
+  .od-info-row .od-iv { font-size:13px;font-weight:600;color:var(--text);text-align:right;max-width:60%;word-break:break-word; }
+
+  .od-timeline-card {
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+    margin-bottom:var(--space-2);box-shadow:var(--shadow-sm);overflow:hidden;
+  }
+  .od-timeline { display:flex;align-items:flex-start;gap:0;padding:10px 12px;overflow-x:auto; }
+  .od-step { display:flex;flex-direction:column;align-items:center;position:relative;flex:1;min-width:72px; }
+  .od-dot {
+    width:28px;height:28px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    border:2px solid var(--border);background:var(--surface);color:var(--text-subtle);
+    position:relative;z-index:1;
+  }
+  .od-step.done .od-dot { background:#10b981;border-color:#10b981;color:#fff; }
+  .od-step.current .od-dot { background:#6366f1;border-color:#6366f1;color:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.18); }
+  .od-step-label { margin-top:4px;font-size:10px;font-weight:600;color:var(--text-subtle);text-align:center;text-transform:uppercase;letter-spacing:.3px; }
+  .od-step.done .od-step-label { color:#10b981; }
+  .od-step.current .od-step-label { color:#6366f1; }
+  .od-conn { flex:1;height:2px;background:var(--border);margin-top:13px;min-width:12px; }
+  .od-conn.done { background:#10b981; }
+
+  .od-actions-bar {
+    display:flex;gap:8px;flex-wrap:wrap;
+    padding:10px 16px;border-top:1px solid var(--border);
+    background:var(--surface-tint);
+  }
+  .od-actions-bar form { margin:0; }
+
+  .od-extra-items {
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+    padding:14px 18px;margin-bottom:var(--space-3);box-shadow:var(--shadow-sm);
+  }
+  .od-extra-item { display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border); }
+  .od-extra-item:last-child { border-bottom:0; }
+  .od-extra-thumb {
+    position:relative;width:40px;height:40px;border-radius:8px;
+    background:var(--surface-2);border:1px solid var(--border);
+    color:var(--text-subtle);flex-shrink:0;overflow:hidden;
+  }
+  .od-extra-thumb-ph { position:absolute;inset:0;display:flex;align-items:center;justify-content:center; }
+  .od-extra-thumb img { position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block; }
+  .od-extra-info { flex:1;min-width:0; }
+  .od-extra-name { font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .od-extra-sub { font-size:11px;color:var(--text-subtle); }
+  .od-extra-price { font-weight:700;font-size:13px;color:var(--text);flex-shrink:0; }
+</style>
+{% endblock %}
+
+{% block app_content %}
+<div class="od-back">
+  <a href="{% url 'orders' %}" class="btn btn-ghost btn-sm">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    Back to orders
+  </a>
+</div>
+
+{% if order.status == 'cancelled' %}
+  <div class="od-banner cancelled">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    Order cancelled
+  </div>
+{% elif order.status == 'closed' %}
+  <div class="od-banner closed">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    Order closed and complete
+  </div>
+{% endif %}
+
+{% with first=items.0 %}
+{% if first %}
+<div class="od-product">
+  <div class="od-product-img">
+    <span class="od-product-img-ph"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></span>
+    {% if first.product.primary_image %}<img src="{{ first.product.primary_image.url }}" alt="" data-fallback>{% endif %}
+  </div>
+  <div class="od-product-body">
+    <div class="od-product-name">{{ first.product.name }}</div>
+    <div class="od-product-sku">{{ first.product.sku }}</div>
+    <div class="od-product-meta">
+      <div class="od-product-meta-item"><span class="od-pm-label">Qty</span><span class="od-pm-value">{{ first.quantity }}</span></div>
+      <div class="od-product-meta-item"><span class="od-pm-label">Unit Price</span><span class="od-pm-value">${{ first.unit_price }}</span></div>
+      <div class="od-product-meta-item"><span class="od-pm-label">Seller</span><span class="od-pm-value">{{ first.seller.tenant.name|default:first.seller.email }}</span></div>
+      <div class="od-product-meta-item"><span class="od-pm-label">Fulfillment</span><span class="od-pm-value"><span class="pill {{ first.fulfillment_status }}">{{ first.get_fulfillment_status_display }}</span></span></div>
+    </div>
+    {% if items|length > 1 %}
+      <div class="od-more-items">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/></svg>
+        +{{ items|length|add:"-1" }} more item{{ items|length|add:"-1"|pluralize }} below
+      </div>
+    {% endif %}
+  </div>
+  <div class="od-product-total">
+    <div class="od-total-label">Order Total</div>
+    <div class="od-total-value">${{ order.total_amount }}</div>
+    <div class="od-total-status"><span class="pill {{ order.status }}">{{ order.get_status_display }}</span></div>
+  </div>
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="od-grid">
+  <div class="od-info-card">
+    <div class="od-info-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Buyer
+    </div>
+    <div class="od-info-row"><span class="od-il">Email</span><span class="od-iv">{{ order.buyer.email }}</span></div>
+    {% if order.buyer.first_name %}<div class="od-info-row"><span class="od-il">Name</span><span class="od-iv">{{ order.buyer.first_name }} {{ order.buyer.last_name }}</span></div>{% endif %}
+    {% if order.buyer.phone %}<div class="od-info-row"><span class="od-il">Phone</span><span class="od-iv">{{ order.buyer.phone }}</span></div>{% endif %}
+    {% if order.buyer.tenant %}<div class="od-info-row"><span class="od-il">Business</span><span class="od-iv">{{ order.buyer.tenant.name }}</span></div>{% endif %}
+    <div class="od-info-row"><span class="od-il">Order ID</span><span class="od-iv"><code style="font-size:11px;">{{ order.id|stringformat:"s"|slice:":8" }}…</code></span></div>
+    <div class="od-info-row"><span class="od-il">Placed</span><span class="od-iv">{{ order.created_at|date:"M j, Y H:i" }}</span></div>
+    <div class="od-info-row"><span class="od-il">In current status</span><span class="od-iv">{{ order.status_changed_at|timesince }} ago</span></div>
+  </div>
+
+  <div class="od-info-card">
+    <div class="od-info-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      Shipping Address
+    </div>
+    {% if order.shipping_name %}
+      <div class="od-info-row"><span class="od-il">Recipient</span><span class="od-iv">{{ order.shipping_name }}</span></div>
+      <div class="od-info-row"><span class="od-il">Phone</span><span class="od-iv">{{ order.shipping_phone }}</span></div>
+      <div class="od-info-row"><span class="od-il">Street</span><span class="od-iv">{{ order.shipping_address_line1 }}{% if order.shipping_address_line2 %}, {{ order.shipping_address_line2 }}{% endif %}</span></div>
+      <div class="od-info-row"><span class="od-il">City / State</span><span class="od-iv">{{ order.shipping_city }}, {{ order.shipping_state }} {{ order.shipping_zip }}</span></div>
+      {% if order.buyer_notes %}<div class="od-info-row"><span class="od-il">Notes</span><span class="od-iv" style="font-weight:400;">{{ order.buyer_notes }}</span></div>{% endif %}
+    {% else %}
+      <p class="muted text-sm">No shipping details provided.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="od-timeline-card">
+  <div class="od-timeline">
+    {% for step in timeline %}
+      {% if not forloop.first %}<div class="od-conn {% if step.state == 'done' %}done{% endif %}"></div>{% endif %}
+      <div class="od-step {{ step.state }}">
+        <div class="od-dot">
+          {% if step.state == 'done' %}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          {% elif step.state == 'current' %}<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+          {% else %}<span style="width:5px;height:5px;border-radius:50%;background:var(--border-strong);display:block;"></span>{% endif %}
+        </div>
+        <div class="od-step-label">{{ step.label }}</div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if allowed_next or can_cancel %}
+  <div class="od-actions-bar" style="flex-direction:column;gap:10px;">
+    {% if role == 'admin' %}
+    <div style="width:100%;">
+      <textarea id="admin-transition-note" rows="2" placeholder="Admin note / reason (optional)…" style="width:100%;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;background:var(--surface-tint);color:var(--text);font-family:inherit;resize:vertical;"></textarea>
+    </div>
+    {% endif %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% for next_status in allowed_next %}
+        <form method="post" action="{% url 'order_transition' order.id %}" class="transition-form">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="{{ next_status }}">
+          <input type="hidden" name="note" value="">
+          <button type="submit" class="btn btn-primary btn-sm">
+            {% if next_status == 'confirmed' %}Confirm{% elif next_status == 'fulfillment' %}Start Fulfillment{% elif next_status == 'shipped' %}Mark Shipped{% elif next_status == 'delivered' %}Mark Delivered{% elif next_status == 'closed' %}Close Order{% else %}{{ next_status|title }}{% endif %}
+          </button>
+        </form>
+      {% endfor %}
+      {% if can_cancel %}
+        <form method="post" action="{% url 'order_transition' order.id %}" class="transition-form" data-confirm="Cancel this order? This cannot be undone.">
+          {% csrf_token %}
+          <input type="hidden" name="status" value="cancelled">
+          <input type="hidden" name="note" value="">
+          <button type="submit" class="btn btn-danger btn-sm">Cancel Order</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if activity_logs %}
+<div class="od-info-card" style="margin-bottom:var(--space-3);">
+  <div class="od-info-title">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+    Activity Log
+  </div>
+  {% for log in activity_logs %}
+    <div class="od-info-row" style="flex-direction:column;align-items:flex-start;gap:3px;">
+      <div style="display:flex;justify-content:space-between;width:100%;">
+        <span class="od-il">{{ log.actor.email|default:"System" }} &mdash; <span class="pill {{ log.from_status }}">{{ log.from_status }}</span> &rarr; <span class="pill {{ log.to_status }}">{{ log.to_status }}</span></span>
+        <span class="od-il">{{ log.created_at|timesince }} ago</span>
+      </div>
+      {% if log.note %}<div style="font-size:12px;color:var(--text);background:var(--surface-2);padding:5px 10px;border-radius:var(--radius-sm);width:100%;">{{ log.note }}</div>{% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if items|length > 1 %}
+<div class="od-extra-items">
+  <div class="od-info-title" style="margin-bottom:8px;">All Items ({{ items|length }})</div>
+  {% for item in items %}
+  <div class="od-extra-item">
+    <div class="od-extra-thumb">
+      <span class="od-extra-thumb-ph"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></span>
+      {% if item.product.primary_image %}<img src="{{ item.product.primary_image.url }}" alt="" data-fallback>{% endif %}
+    </div>
+    <div class="od-extra-info">
+      <div class="od-extra-name">{{ item.product.name }}</div>
+      <div class="od-extra-sub">{{ item.product.sku }} &middot; {{ item.quantity }} &times; ${{ item.unit_price }} &middot; {{ item.seller.tenant.name|default:item.seller.email }}</div>
+    </div>
+    <div class="od-extra-price">${{ item.line_total }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% block extra_js %}
+<script src="{% static 'js/order_actions.js' %}" defer></script>
+{% endblock %}
+{% endblock %}

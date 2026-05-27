@@ -3,6 +3,69 @@
 {% block header_title %}Dashboard{% endblock %}
 
 {% block app_content %}
+<style>
+  .adm-tbl {
+    width:100%;border-collapse:separate;border-spacing:14px 0;
+    margin:0 -14px 6px -14px;table-layout:fixed;
+  }
+  .adm-tbl td {
+    width:50%;vertical-align:top;padding:0;
+    background:transparent;border:none;
+  }
+  .adm-tbl td > .card {
+    margin:0 0 14px 0;padding:var(--space-4);
+  }
+  .adm-tbl td > .card:last-child { margin-bottom:0; }
+  .adm-chart-box {
+    padding:8px 12px;
+    height:180px;
+    position:relative;
+  }
+  .adm-chart-box canvas {
+    display:block;width:100% !important;height:100% !important;
+  }
+  .adm-kv { padding:4px 16px 12px; }
+  .adm-kv-row {
+    display:flex;justify-content:space-between;align-items:center;
+    padding:7px 0;border-bottom:1px solid var(--border);
+    font-size:13px;color:var(--text-muted);
+  }
+  .adm-kv-row:last-child { border-bottom:0; }
+  .adm-kv-row strong { color:var(--text);font-size:14px; }
+  .seg-title {
+    font-size:15px;font-weight:700;color:var(--text);
+    margin:36px 0 10px;
+    padding-left:10px;
+    border-left:3px solid var(--accent);
+    line-height:1.2;
+  }
+  .adm-shortcuts {
+    display:flex;gap:10px;flex-wrap:wrap;
+    margin-top:14px;padding-top:14px;
+    border-top:1px solid var(--border);
+  }
+  .adm-shortcut {
+    display:inline-flex;align-items:center;gap:7px;
+    padding:8px 16px;border-radius:var(--radius-md);
+    font-size:13px;font-weight:600;color:var(--text-muted);
+    background:var(--surface);border:1px solid var(--border);
+    text-decoration:none;transition:all .15s;
+  }
+  .adm-shortcut:hover {
+    color:var(--text);background:var(--surface-2);
+    border-color:var(--border-strong);text-decoration:none;
+    transform:translateY(-1px);box-shadow:var(--shadow-sm);
+  }
+  .adm-shortcut svg { color:var(--text-subtle); }
+  .adm-shortcut:hover svg { color:var(--primary); }
+  @media (max-width:880px) {
+    .adm-tbl,.adm-tbl tbody,.adm-tbl tr,.adm-tbl td {
+      display:block;width:100%;margin:0;
+    }
+    .adm-tbl { border-spacing:0;margin:0 0 14px 0; }
+    .adm-tbl td > .card { margin-bottom:14px; }
+  }
+</style>
 {% if role == "seller" %}
 
   <div class="stat-grid">
@@ -13,13 +76,13 @@
       <div><div class="label">Total products</div><div class="value">{{ my_products_count }}</div></div>
     </div>
     <div class="stat">
-      <div class="stat-icon accent">
+      <div class="stat-icon warning">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       </div>
       <div><div class="label">Pending orders</div><div class="value">{{ pending_orders_count }}</div></div>
     </div>
     <div class="stat">
-      <div class="stat-icon warning">
+      <div class="stat-icon accent">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <div><div class="label">Fulfilled orders</div><div class="value">{{ fulfilled_orders_count }}</div></div>
@@ -32,103 +95,29 @@
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4);">
-    <div class="card" style="margin-bottom:0;">
-      <div class="card-header"><h2>Revenue &mdash; Last 7 days</h2></div>
-      <div style="padding:16px 20px;"><canvas id="revenueChart" height="200"></canvas></div>
-    </div>
-    <div class="card" style="margin-bottom:0;">
-      <div class="card-header"><h2>Orders &mdash; Last 7 days</h2></div>
-      <div style="padding:16px 20px;"><canvas id="ordersChart" height="200"></canvas></div>
-    </div>
-  </div>
+  <div class="seg-title">Sales Performance</div>
+  <table class="adm-tbl"><tr>
+    <td><div class="card"><div class="card-header"><h2>Revenue — 7 days</h2></div><div class="adm-chart-box"><canvas id="revenueChart"></canvas></div></div></td>
+    <td><div class="card"><div class="card-header"><h2>Orders — 7 days</h2></div><div class="adm-chart-box"><canvas id="ordersChart"></canvas></div></div></td>
+  </tr></table>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4);margin-bottom:var(--space-4);">
-    <div class="card" style="margin-bottom:0;">
-      <div class="card-header"><h2>Order status breakdown</h2></div>
-      <div style="padding:16px 20px;display:flex;align-items:center;justify-content:center;">
-        <canvas id="orderStatusChart" height="200" style="max-height:220px;"></canvas>
-      </div>
-    </div>
-    <div class="card" style="margin-bottom:0;">
-      <div class="card-header"><h2>Product overview</h2></div>
-      <div style="padding:16px 20px;display:flex;align-items:center;justify-content:center;">
-        <canvas id="productStatusChart" height="200" style="max-height:220px;"></canvas>
-      </div>
-    </div>
-  </div>
+  <div class="seg-title">Breakdown</div>
+  <table class="adm-tbl"><tr>
+    <td><div class="card"><div class="card-header"><h2>Order status</h2></div><div class="adm-chart-box"><canvas id="orderStatusChart"></canvas></div></div></td>
+    <td><div class="card"><div class="card-header"><h2>Product overview</h2></div><div class="adm-chart-box"><canvas id="productStatusChart"></canvas></div></div></td>
+  </tr></table>
 
-  <div class="card">
-    <div class="card-header"><h2>Quick actions</h2></div>
-    <div style="padding:16px 20px;display:flex;gap:12px;flex-wrap:wrap;">
-      <a href="{% url 'seller_product_create' %}" class="btn btn-primary btn-sm">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-        Add product
-      </a>
-      <a href="{% url 'seller_products' %}" class="btn btn-secondary btn-sm">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/></svg>
-        My products
-      </a>
-      <a href="{% url 'orders' %}" class="btn btn-secondary btn-sm">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        Orders
-      </a>
-      <a href="{% url 'seller_products' %}?status=low_stock" class="btn btn-secondary btn-sm">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        Low stock ({{ low_stock_count }})
-      </a>
-    </div>
-  </div>
 
+  {% load static %}
+  <script id="chart-data" type="application/json">{"revenueLabels":{{ revenue_labels_json|safe }},"revenueData":{{ revenue_data_json|safe }},"ordersData":{{ orders_data_json|safe }},"orderStatusLabels":{{ order_status_labels_json|safe }},"orderStatusData":{{ order_status_data_json|safe }},"activeProducts":{{ active_products_count }},"inactiveProducts":{{ inactive_products_count }},"lowStock":{{ low_stock_count }}}</script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script>
-  (function(){
-    var primaryColor='#0c2340';
-    var accentColor='#d4a155';
-    var successColor='#047857';
-    var warningColor='#b45309';
-    var mutedColor='#94a3b8';
-
-    var revenueLabels={{ revenue_labels_json|safe }};
-    var revenueData={{ revenue_data_json|safe }};
-    var ordersData={{ orders_data_json|safe }};
-    var orderStatusLabels={{ order_status_labels_json|safe }};
-    var orderStatusData={{ order_status_data_json|safe }};
-
-    Chart.defaults.font={family:'-apple-system,BlinkMacSystemFont,Inter,sans-serif',size:11};
-    Chart.defaults.plugins.legend.display=false;
-
-    new Chart(document.getElementById('revenueChart'),{
-      type:'bar',
-      data:{labels:revenueLabels,datasets:[{data:revenueData,backgroundColor:accentColor,borderRadius:4,barPercentage:0.6}]},
-      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{callback:function(v){return '$'+v;}}},x:{grid:{display:false}}},plugins:{tooltip:{callbacks:{label:function(c){return '$'+c.parsed.y.toFixed(2);}}}}}
-    });
-
-    new Chart(document.getElementById('ordersChart'),{
-      type:'line',
-      data:{labels:revenueLabels,datasets:[{data:ordersData,borderColor:primaryColor,backgroundColor:'rgba(12,35,64,.08)',fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:primaryColor}]},
-      options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{stepSize:1}},x:{grid:{display:false}}},plugins:{tooltip:{callbacks:{label:function(c){return c.parsed.y+' orders';}}}}}
-    });
-
-    var statusColors=[primaryColor,accentColor,successColor,warningColor,'#6366f1','#ec4899',mutedColor];
-    new Chart(document.getElementById('orderStatusChart'),{
-      type:'doughnut',
-      data:{labels:orderStatusLabels,datasets:[{data:orderStatusData,backgroundColor:statusColors.slice(0,orderStatusLabels.length),borderWidth:0}]},
-      options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:true,position:'bottom',labels:{padding:12,usePointStyle:true,pointStyle:'circle'}}}}
-    });
-
-    new Chart(document.getElementById('productStatusChart'),{
-      type:'doughnut',
-      data:{labels:['Active','Inactive','Low stock'],datasets:[{data:[{{ active_products_count }},{{ inactive_products_count }},{{ low_stock_count }}],backgroundColor:[successColor,mutedColor,warningColor],borderWidth:0}]},
-      options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:true,position:'bottom',labels:{padding:12,usePointStyle:true,pointStyle:'circle'}}}}
-    });
-  })();
-  </script>
+  <script src="{% static 'js/dashboard_charts.js' %}"></script>
 
 
 {% elif role == "admin" %}
 
-  <div class="stat-grid">
+  {# ── Row 1: Key metrics ── #}
+  <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
     <div class="stat">
       <div class="stat-icon">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -136,96 +125,150 @@
       <div><div class="label">Total members</div><div class="value">{{ total_users }}</div></div>
     </div>
     <div class="stat">
-      <div class="stat-icon accent">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/></svg>
+      <div class="stat-icon success">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
       </div>
-      <div><div class="label">Products listed</div><div class="value">{{ total_products }}</div></div>
+      <div><div class="label">Total revenue</div><div class="value">${{ total_revenue }}</div></div>
     </div>
     <div class="stat">
-      <div class="stat-icon success">
+      <div class="stat-icon accent">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       </div>
-      <div><div class="label">Orders placed</div><div class="value">{{ total_orders }}</div></div>
+      <div><div class="label">Total orders</div><div class="value">{{ total_orders }}</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon info">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/></svg>
+      </div>
+      <div><div class="label">Products</div><div class="value">{{ total_products }}</div></div>
     </div>
     <div class="stat">
       <div class="stat-icon warning">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       </div>
-      <div><div class="label">Awaiting review</div><div class="value">{{ pending_members|length }}</div></div>
+      <div><div class="label">Pending review</div><div class="value">{{ pending_users }}</div></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-header">
-      <h2>Pending member approvals</h2>
-      {% if pending_members %}<span class="pill pending">{{ pending_members|length }} waiting</span>{% endif %}
-    </div>
-    {% if pending_members %}
-      <table>
-        <thead><tr><th>Email</th><th>Role</th><th>Business</th><th>Requested</th><th style="text-align:right;">Action</th></tr></thead>
-        <tbody>
-          {% for m in pending_members %}
-            <tr>
-              <td>{{ m.email }}</td>
-              <td><span class="pill role-{{ m.role }}">{{ m.role }}</span></td>
-              <td>{{ m.tenant.name|default:"—" }}</td>
-              <td class="muted">{{ m.created_at|date:"M j, Y H:i" }}</td>
-              <td style="text-align: right;">
-                <div class="row" style="justify-content: flex-end; gap: 6px;">
-                  <form method="post" action="{% url 'admin_approve_member' m.id %}" style="display:inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-primary btn-sm">Approve</button>
-                  </form>
-                  <form method="post" action="{% url 'admin_suspend_member' m.id %}" style="display:inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-secondary btn-sm">Suspend</button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="empty">
-        <div class="empty-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <div class="seg-title">Analytics</div>
+  <table class="adm-tbl"><tr>
+    <td><div class="card"><div class="card-header"><h2>Revenue — 7 days</h2></div><div class="adm-chart-box"><canvas id="adminRevenueChart"></canvas></div></div></td>
+    <td><div class="card"><div class="card-header"><h2>Orders — 7 days</h2></div><div class="adm-chart-box"><canvas id="adminOrdersChart"></canvas></div></div></td>
+  </tr></table>
+
+  <table class="adm-tbl"><tr>
+    <td><div class="card"><div class="card-header"><h2>Order status</h2></div><div class="adm-chart-box"><canvas id="adminOrderStatusChart"></canvas></div></div></td>
+    <td><div class="card"><div class="card-header"><h2>Members by role</h2></div><div class="adm-chart-box"><canvas id="adminRoleChart"></canvas></div></div></td>
+  </tr></table>
+
+  <div class="seg-title">Platform Overview</div>
+  <table class="adm-tbl"><tr>
+    <td>
+      <div class="card">
+        <div class="card-header"><h2>Platform Users</h2></div>
+        <div class="adm-kv">
+          <div class="adm-kv-row"><span>Buyers</span><strong>{{ buyers_count }}</strong></div>
+          <div class="adm-kv-row"><span>Sellers</span><strong>{{ sellers_count }}</strong></div>
+          <div class="adm-kv-row"><span><span class="pill active">Active</span></span><strong>{{ active_users }}</strong></div>
+          <div class="adm-kv-row"><span><span class="pill pending">Pending</span></span><strong>{{ pending_users }}</strong></div>
+          <div class="adm-kv-row"><span><span class="pill suspended">Suspended</span></span><strong>{{ suspended_users }}</strong></div>
         </div>
-        <h3>You're all caught up</h3>
-        <p class="text-sm">No members are waiting for review right now.</p>
       </div>
-    {% endif %}
-  </div>
+    </td>
+    <td>
+      <div class="card">
+        <div class="card-header"><h2>Inventory</h2></div>
+        <div class="adm-kv">
+          <div class="adm-kv-row"><span>Active products</span><strong>{{ active_products }}</strong></div>
+          <div class="adm-kv-row"><span>Total listed</span><strong>{{ total_products }}</strong></div>
+          {% if low_stock_products > 0 %}<div class="adm-kv-row"><span style="color:var(--danger);font-weight:600;">Low stock (&lt; 5)</span><strong style="color:var(--danger);">{{ low_stock_products }}</strong></div>{% endif %}
+        </div>
+      </div>
+    </td>
+  </tr></table>
 
-  <div class="card">
+  <div class="seg-title">Management</div>
+  <table class="adm-tbl"><tr>
+    <td>
+      <div class="card">
+        <div class="card-header">
+          <h2>{% if pending_members %}Pending approvals <span class="pill pending" style="margin-left:6px;">{{ pending_members|length }}</span>{% else %}Member approvals{% endif %}</h2>
+          <a href="{% url 'admin_members' %}" class="btn btn-secondary btn-sm">All members</a>
+        </div>
+        {% if pending_members %}
+          <table>
+            <thead><tr><th>Email</th><th>Business</th><th style="text-align:right;">Action</th></tr></thead>
+            <tbody>
+              {% for m in pending_members %}
+                <tr>
+                  <td>{{ m.email }}</td>
+                  <td>{{ m.tenant.name|default:"—" }}</td>
+                  <td style="text-align:right;">
+                    <div class="row" style="justify-content:flex-end;gap:6px;">
+                      <form method="post" action="{% url 'admin_approve_member' m.id %}" style="display:inline;">{% csrf_token %}<button type="submit" class="btn btn-primary btn-sm">Approve</button></form>
+                      <form method="post" action="{% url 'admin_suspend_member' m.id %}" style="display:inline;">{% csrf_token %}<button type="submit" class="btn btn-secondary btn-sm">Reject</button></form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="empty" style="padding:20px;"><h3>All caught up</h3></div>
+        {% endif %}
+      </div>
+    </td>
+    <td>
+      {% if top_sellers %}
+      <div class="card">
+        <div class="card-header"><h2>Top sellers</h2><span class="muted text-sm">By revenue</span></div>
+        <table>
+          <thead><tr><th>Seller</th><th style="text-align:right;">Revenue</th></tr></thead>
+          <tbody>
+            {% for s in top_sellers %}
+              <tr>
+                <td style="font-weight:600;">{{ s.tenant__name|default:s.email }}</td>
+                <td style="text-align:right;"><strong>${{ s.revenue|default_if_none:"0.00" }}</strong></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </td>
+  </tr></table>
+
+  <div class="seg-title">Recent Activity</div>
+  <div class="card" style="margin-bottom:0;">
     <div class="card-header">
-      <h2>Recent orders across all tenants</h2>
+      <h2>Recent orders</h2>
+      <a href="{% url 'orders' %}" class="btn btn-secondary btn-sm">View all</a>
     </div>
     {% if recent_orders %}
       <table>
-        <thead><tr><th>Order</th><th>Buyer</th><th>Tenant</th><th>Status</th><th>Total</th></tr></thead>
+        <thead><tr><th>Order</th><th>Buyer</th><th>Status</th><th>Total</th><th style="text-align:right;"></th></tr></thead>
         <tbody>
           {% for o in recent_orders %}
             <tr>
-              <td><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></td>
-              <td>{{ o.buyer.email }}</td>
-              <td>{{ o.tenant.name|default:"—" }}</td>
-              <td><span class="pill {{ o.status }}">{{ o.status }}</span></td>
+              <td><a href="{% url 'order_detail' o.id %}"><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></a></td>
+              <td>{{ o.buyer.tenant.name|default:o.buyer.email }}</td>
+              <td><span class="pill {{ o.status }}">{{ o.get_status_display }}</span></td>
               <td><strong>${{ o.total_amount }}</strong></td>
+              <td style="text-align:right;"><a href="{% url 'order_detail' o.id %}" class="btn btn-secondary btn-sm">View</a></td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     {% else %}
-      <div class="empty">
-        <div class="empty-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        </div>
-        <h3>No orders yet</h3>
-        <p class="text-sm">As buyers place orders they'll show up here.</p>
-      </div>
+      <div class="empty" style="padding:20px;"><h3>No orders yet</h3></div>
     {% endif %}
   </div>
+
+  {# ── Admin charts ── #}
+  {% load static %}
+  <script id="admin-chart-data" type="application/json">{"revenueLabels":{{ revenue_labels_json|safe }},"revenueData":{{ revenue_data_json|safe }},"ordersData":{{ orders_data_json|safe }},"orderStatusLabels":{{ order_status_labels_json|safe }},"orderStatusData":{{ order_status_data_json|safe }},"roleLabels":{{ role_labels_json|safe }},"roleData":{{ role_data_json|safe }}}</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="{% static 'js/admin_charts.js' %}"></script>
 
 
 {% elif role == "auditor" %}
