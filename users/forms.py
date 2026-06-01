@@ -33,7 +33,7 @@ class SignupForm(forms.Form):
         choices=[
             (CustomUser.Role.SELLER, "Seller — I list products for sale"),
         ],
-        widget=forms.Select(),
+        widget=forms.HiddenInput(),
         initial=CustomUser.Role.SELLER,
     )
     vertical_type = forms.ChoiceField(

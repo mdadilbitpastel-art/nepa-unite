@@ -13,6 +13,13 @@
 
   <form method="post" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
+    {{ form.role }}
+
+    {% if form.errors %}
+      <div class="msg" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;">
+        Please fix the errors below to create your account.
+      </div>
+    {% endif %}
 
     <div class="su-logo-section">
       <label for="id_logo" class="su-logo">
