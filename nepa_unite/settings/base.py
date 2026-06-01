@@ -92,6 +92,17 @@ DATABASES = {
 }
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 
+# Optional: confine this app's tables to a dedicated Postgres schema so a
+# single database instance can be shared with another app without table
+# collisions. When DB_SCHEMA is set, every connection runs with
+# `search_path=<schema>,public`, so migrations create/lookup tables in that
+# schema first. The schema itself is created in build.sh before `migrate`.
+# Unset (local dev) → normal `public` schema, nothing changes.
+DB_SCHEMA = env("DB_SCHEMA", default="")
+if DB_SCHEMA:
+    DATABASES["default"].setdefault("OPTIONS", {})
+    DATABASES["default"]["OPTIONS"]["options"] = f"-c search_path={DB_SCHEMA},public"
+
 _replica_url = env("DATABASE_REPLICA_URL")
 if _replica_url:
     DATABASES["replica"] = env.db_url_config(_replica_url)

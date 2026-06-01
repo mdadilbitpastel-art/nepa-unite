@@ -29,11 +29,15 @@ services:
       - key: WEB_CONCURRENCY
         value: "4"                    # gunicorn worker count
 
-      # --- Database (EXTERNAL Postgres — paste the connection string in the
-      #     dashboard; e.g. a Neon / Supabase free database). Must include
-      #     ?sslmode=require for those providers. ---
+      # --- Database ---
+      # Reuses an EXISTING Render Postgres (shared with another service).
+      # Paste that DB's *Internal Database URL* into DATABASE_URL in the
+      # dashboard. DB_SCHEMA keeps this app's tables in their own schema so
+      # they never collide with the other service's tables.
       - key: DATABASE_URL
         sync: false
+      - key: DB_SCHEMA
+        value: nepa_unite
 
       # --- CORS (set to your frontend origin if you have one) ---
       - key: DJANGO_CORS_ALLOWED_ORIGINS
