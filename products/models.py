@@ -91,3 +91,59 @@ class ProductImage(models.Model):
 
     class Meta:
         db_table = "products_productimage"
+
+
+class WishlistItem(models.Model):
+    """Buyer's favorited product."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="wishlist",
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="wishlisted_by"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "products_wishlistitem"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "product"], name="uniq_wishlist_per_user_product"
+            ),
+        ]
+        ordering = ["-created_at"]
+
+
+class ProductReview(models.Model):
+    """Buyer review of a product."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="reviews"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reviews_written",
+    )
+    rating = models.PositiveSmallIntegerField()
+    title = models.CharField(max_length=140, blank=True, default="")
+    body = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_productreview"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "user"], name="uniq_review_per_user_product"
+            ),
+            models.CheckConstraint(
+                check=models.Q(rating__gte=1) & models.Q(rating__lte=5),
+                name="review_rating_1_to_5",
+            ),
+        ]
+        ordering = ["-created_at"]

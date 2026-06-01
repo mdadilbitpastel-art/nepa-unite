@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from users.models import CustomUser, Tenant, WorkflowTemplate
+from users.models import BuyerAddress, CustomUser, Tenant, WorkflowTemplate
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +53,27 @@ class RefreshSerializer(serializers.Serializer):
 
 class LogoutSerializer(serializers.Serializer):
     refresh_token = serializers.CharField()
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(min_length=8, write_only=True)
+
+
+class BuyerAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BuyerAddress
+        fields = (
+            "id", "label", "recipient_name", "phone",
+            "line1", "line2", "city", "state", "zip_code", "country",
+            "is_default", "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
 
 
 # ---------------------------------------------------------------------------

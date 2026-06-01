@@ -36,7 +36,7 @@ from users.forms import (
     ResetPasswordForm,
     SignupForm,
 )
-from users.models import CustomUser, Tenant
+from users.models import Buyer, CustomUser, Seller, Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -426,7 +426,10 @@ def dashboard_view(request):
         all_users = CustomUser.objects.all()
         all_products = Product.objects.all()
 
-        ctx["total_users"] = all_users.count()
+        # Exclude admins from every user-facing count on the dashboard —
+        # admin accounts are operational, not part of the marketplace metric.
+        non_admin_users = all_users.exclude(role=CustomUser.Role.ADMIN)
+        ctx["total_users"] = non_admin_users.count()
         ctx["total_products"] = all_products.count()
         ctx["total_orders"] = all_orders.count()
         ctx["total_revenue"] = float(
@@ -437,9 +440,9 @@ def dashboard_view(request):
 
         ctx["buyers_count"] = all_users.filter(role=CustomUser.Role.BUYER).count()
         ctx["sellers_count"] = all_users.filter(role=CustomUser.Role.SELLER).count()
-        ctx["active_users"] = all_users.filter(status=CustomUser.Status.ACTIVE).count()
-        ctx["pending_users"] = all_users.filter(status=CustomUser.Status.PENDING).count()
-        ctx["suspended_users"] = all_users.filter(status=CustomUser.Status.SUSPENDED).count()
+        ctx["active_users"] = non_admin_users.filter(status=CustomUser.Status.ACTIVE).count()
+        ctx["pending_users"] = non_admin_users.filter(status=CustomUser.Status.PENDING).count()
+        ctx["suspended_users"] = non_admin_users.filter(status=CustomUser.Status.SUSPENDED).count()
 
         ctx["active_products"] = all_products.filter(status=Product.Status.ACTIVE).count()
         ctx["low_stock_products"] = all_products.filter(
@@ -486,6 +489,8 @@ def dashboard_view(request):
 
         role_dist = {}
         for r in CustomUser.Role:
+            if r == CustomUser.Role.ADMIN:
+                continue
             c = all_users.filter(role=r.value).count()
             if c > 0:
                 role_dist[r.label] = c
@@ -494,6 +499,7 @@ def dashboard_view(request):
 
         ctx["pending_members"] = list(
             all_users.filter(status=CustomUser.Status.PENDING)
+            .exclude(role=CustomUser.Role.ADMIN)
             .select_related("tenant").order_by("-created_at")[:5]
         )
         ctx["recent_orders"] = list(
@@ -525,15 +531,19 @@ def dashboard_view(request):
 # ---------------------------------------------------------------------------
 @login_required
 def api_reference_view(request):
+    if request.user.role not in (CustomUser.Role.ADMIN, CustomUser.Role.SELLER):
+        return redirect("dashboard")
     api_groups = [
         {
             "name": "Authentication",
             "description": "Session and JWT-style auth endpoints.",
             "endpoints": [
-                ("POST", "/api/v1/auth/register", "Create an account"),
+                ("POST", "/api/v1/auth/register", "Create an account (buyers auto-active, sellers pending)"),
                 ("POST", "/api/v1/auth/login", "Issue an access token"),
                 ("POST", "/api/v1/auth/refresh", "Refresh a token"),
                 ("POST", "/api/v1/auth/logout", "Revoke the current session"),
+                ("POST", "/api/v1/auth/forgot-password", "Email a password reset link"),
+                ("POST", "/api/v1/auth/reset-password", "Submit new password with uid + token"),
             ],
         },
         {
@@ -542,22 +552,69 @@ def api_reference_view(request):
             "endpoints": [
                 ("GET",  "/api/v1/members/", "List members"),
                 ("GET",  "/api/v1/members/{id}/", "Retrieve a member"),
+                ("PATCH", "/api/v1/members/{id}/", "Update own profile"),
                 ("GET",  "/api/v1/admin/members/", "Admin — list every member"),
                 ("POST", "/api/v1/admin/members/{id}/approve/", "Approve a pending member"),
                 ("POST", "/api/v1/admin/members/{id}/suspend/", "Suspend a member"),
             ],
         },
         {
+            "name": "Addresses (buyer)",
+            "description": "Saved shipping addresses for the buyer's address book.",
+            "endpoints": [
+                ("GET",    "/api/v1/addresses/", "List saved addresses"),
+                ("POST",   "/api/v1/addresses/", "Add a new address"),
+                ("GET",    "/api/v1/addresses/{id}/", "Retrieve an address"),
+                ("PATCH",  "/api/v1/addresses/{id}/", "Update an address"),
+                ("DELETE", "/api/v1/addresses/{id}/", "Remove an address"),
+                ("POST",   "/api/v1/addresses/{id}/set-default/", "Mark as default"),
+            ],
+        },
+        {
             "name": "Products",
-            "description": "Catalog CRUD + bulk import jobs.",
+            "description": "Catalog CRUD, search, categories, seller storefront.",
             "endpoints": [
                 ("GET",    "/api/v1/products/", "List products"),
-                ("POST",   "/api/v1/products/", "Create a product"),
+                ("POST",   "/api/v1/products/", "Create a product (seller)"),
                 ("GET",    "/api/v1/products/{id}/", "Retrieve a product"),
-                ("PATCH",  "/api/v1/products/{id}/", "Update a product"),
-                ("DELETE", "/api/v1/products/{id}/", "Soft-delete a product"),
+                ("PATCH",  "/api/v1/products/{id}/", "Update a product (seller)"),
+                ("DELETE", "/api/v1/products/{id}/", "Soft-delete a product (seller)"),
+                ("GET",    "/api/v1/products/search/", "Full-text search + facets (public)"),
+                ("GET",    "/api/v1/products/categories/", "List active categories (public)"),
+                ("GET",    "/api/v1/products/by-seller/{seller_id}/", "Public seller storefront"),
                 ("GET",    "/api/v1/jobs/", "List bulk-import jobs"),
                 ("GET",    "/api/v1/jobs/{id}/", "Retrieve a job"),
+            ],
+        },
+        {
+            "name": "Wishlist (buyer)",
+            "description": "Buyer's favorited products.",
+            "endpoints": [
+                ("GET",    "/api/v1/wishlist/", "List wishlist"),
+                ("POST",   "/api/v1/wishlist/", "Add product to wishlist {product}"),
+                ("DELETE", "/api/v1/wishlist/{id}/", "Remove from wishlist"),
+            ],
+        },
+        {
+            "name": "Reviews",
+            "description": "Buyer product reviews + ratings.",
+            "endpoints": [
+                ("GET",    "/api/v1/products/{id}/reviews/", "List reviews + average rating (public)"),
+                ("POST",   "/api/v1/products/{id}/reviews/", "Write a review (buyer)"),
+                ("PATCH",  "/api/v1/reviews/{id}/", "Edit own review"),
+                ("DELETE", "/api/v1/reviews/{id}/", "Delete own review"),
+            ],
+        },
+        {
+            "name": "Cart (buyer)",
+            "description": "Persistent server-side cart.",
+            "endpoints": [
+                ("GET",    "/api/v1/cart/", "Get current cart"),
+                ("POST",   "/api/v1/cart/items/", "Add item {product_id, quantity}"),
+                ("PATCH",  "/api/v1/cart/items/{item_id}/", "Update quantity"),
+                ("DELETE", "/api/v1/cart/items/{item_id}/", "Remove item"),
+                ("POST",   "/api/v1/cart/clear/", "Empty cart"),
+                ("POST",   "/api/v1/cart/checkout/", "Convert cart → order (uses address_id or inline shipping)"),
             ],
         },
         {
@@ -567,7 +624,7 @@ def api_reference_view(request):
                 ("GET",   "/api/v1/orders/", "List orders"),
                 ("POST",  "/api/v1/orders/", "Create an order"),
                 ("GET",   "/api/v1/orders/{id}/", "Retrieve an order"),
-                ("PATCH", "/api/v1/orders/{id}/", "Update an order"),
+                ("PATCH", "/api/v1/orders/{id}/status/", "Change order status (state machine)"),
             ],
         },
         {
@@ -617,6 +674,8 @@ def api_reference_view(request):
 # ---------------------------------------------------------------------------
 @login_required
 def system_health_view(request):
+    if request.user.role not in (CustomUser.Role.ADMIN, CustomUser.Role.AUDITOR):
+        return redirect("dashboard")
     from core.views import HealthCheckView
 
     db_ok, db_error = HealthCheckView._check_db()
@@ -1060,129 +1119,142 @@ def audit_log_view(request):
 
 
 # ---------------------------------------------------------------------------
-# Admin: members directory — full list with filters and inline actions
+# Admin: sellers + buyers directories
 # ---------------------------------------------------------------------------
-@login_required
-def admin_members_view(request):
-    if request.user.role != CustomUser.Role.ADMIN:
-        return redirect("dashboard")
-
+def _admin_directory_context(request, base_qs, role_label_plural):
+    """Build the shared list/filter/pagination context for sellers + buyers."""
     status_filter = request.GET.get("status", "").strip()
-    role_filter = request.GET.get("role", "").strip()
     query = request.GET.get("q", "").strip()
 
-    admin_first = models.Case(
-        models.When(role=CustomUser.Role.ADMIN, then=0),
-        default=1,
-        output_field=models.IntegerField(),
-    )
-    members_qs = (
-        CustomUser.objects.select_related("tenant")
-        .annotate(_admin_first=admin_first)
-        .order_by("_admin_first", "-created_at")
-    )
+    qs = base_qs.select_related("tenant").order_by("-created_at")
     if status_filter in CustomUser.Status.values:
-        members_qs = members_qs.filter(status=status_filter)
-    if role_filter in CustomUser.Role.values:
-        members_qs = members_qs.filter(role=role_filter)
+        qs = qs.filter(status=status_filter)
     if query:
-        members_qs = members_qs.filter(email__icontains=query)
+        qs = qs.filter(email__icontains=query)
 
-    counts_qs = CustomUser.objects.values_list("status").all()
     counts = {"pending": 0, "active": 0, "suspended": 0}
     total = 0
-    for (status,) in counts_qs:
+    for (status,) in base_qs.values_list("status"):
         total += 1
         if status in counts:
             counts[status] += 1
 
-    page = _paginate(request, members_qs)
-    ctx = {
+    page = _paginate(request, qs)
+    return {
         "user": request.user,
         "role": request.user.role,
         "members": page.object_list,
         "page": page,
-        "elided_range": page.paginator.get_elided_page_range(page.number, on_each_side=1, on_ends=1),
+        "elided_range": page.paginator.get_elided_page_range(
+            page.number, on_each_side=1, on_ends=1
+        ),
         "qs_prefix": _querystring_without_page(request),
         "status_filter": status_filter,
-        "role_filter": role_filter,
         "q": query,
+        "role_label_plural": role_label_plural,
         "stats": {
             "total": total,
             "active": counts["active"],
             "pending": counts["pending"],
             "suspended": counts["suspended"],
         },
-        "role_choices": CustomUser.Role.choices,
     }
-    return render(request, "dashboard/members.html", ctx)
+
+
+@login_required
+def admin_sellers_view(request):
+    if request.user.role != CustomUser.Role.ADMIN:
+        return redirect("dashboard")
+    ctx = _admin_directory_context(request, Seller.objects.all(), "Sellers")
+    return render(request, "dashboard/sellers.html", ctx)
+
+
+@login_required
+def admin_buyers_view(request):
+    if request.user.role != CustomUser.Role.ADMIN:
+        return redirect("dashboard")
+    ctx = _admin_directory_context(request, Buyer.objects.all(), "Buyers")
+    return render(request, "dashboard/buyers.html", ctx)
 
 
 # ---------------------------------------------------------------------------
-# Admin: member detail — full profile + stats dashboard
+# Admin: seller detail — full profile + product/order stats
 # ---------------------------------------------------------------------------
 @login_required
-def admin_member_detail(request, member_id):
+def admin_seller_detail(request, seller_id):
     if request.user.role != CustomUser.Role.ADMIN:
         return redirect("dashboard")
 
     member = get_object_or_404(
-        CustomUser.objects.select_related("tenant"), pk=member_id
+        Seller.objects.select_related("tenant"), pk=seller_id
     )
     tenant = member.tenant
-    ctx = {"member": member, "tenant": tenant}
 
-    if member.role == CustomUser.Role.SELLER:
-        products = Product.objects.filter(seller=member)
-        seller_orders = Order.objects.filter(items__seller=member).distinct()
+    products = Product.objects.filter(seller=member)
+    seller_orders = Order.objects.filter(items__seller=member).distinct()
 
-        ctx["products_total"] = products.count()
-        ctx["products_active"] = products.filter(
-            status=Product.Status.ACTIVE
-        ).count()
-        ctx["products_inactive"] = products.filter(
-            status=Product.Status.INACTIVE
-        ).count()
-        ctx["low_stock"] = products.filter(
+    ctx = {
+        "member": member,
+        "tenant": tenant,
+        "products_total": products.count(),
+        "products_active": products.filter(status=Product.Status.ACTIVE).count(),
+        "products_inactive": products.filter(status=Product.Status.INACTIVE).count(),
+        "low_stock": products.filter(
             status=Product.Status.ACTIVE, inventory_count__lt=5
-        ).count()
-
-        ctx["orders_total"] = seller_orders.count()
-        ctx["orders_pending"] = seller_orders.filter(
+        ).count(),
+        "orders_total": seller_orders.count(),
+        "orders_pending": seller_orders.filter(
             status__in=[Order.Status.CONFIRMED, Order.Status.FULFILLMENT]
-        ).count()
-        ctx["orders_fulfilled"] = seller_orders.filter(
+        ).count(),
+        "orders_fulfilled": seller_orders.filter(
             status__in=[Order.Status.DELIVERED, Order.Status.CLOSED]
-        ).count()
-        ctx["revenue"] = (
+        ).count(),
+        "revenue": (
             seller_orders.filter(
                 status__in=[Order.Status.DELIVERED, Order.Status.CLOSED]
             ).aggregate(total=models.Sum("total_amount"))["total"]
-        ) or 0
-
-        ctx["recent_orders"] = seller_orders.select_related(
+        ) or 0,
+        "recent_orders": seller_orders.select_related(
             "buyer", "tenant"
-        ).prefetch_related("items__product").order_by("-created_at")[:5]
-        ctx["top_products"] = products.filter(
+        ).prefetch_related("items__product").order_by("-created_at")[:5],
+        "top_products": products.filter(
             status=Product.Status.ACTIVE
-        ).order_by("-inventory_count")[:5]
+        ).order_by("-inventory_count")[:5],
+    }
+    return render(request, "dashboard/seller_detail.html", ctx)
 
-    elif member.role == CustomUser.Role.BUYER:
-        buyer_orders = Order.objects.filter(buyer=member)
-        ctx["orders_total"] = buyer_orders.count()
-        ctx["orders_pending"] = buyer_orders.filter(
+
+# ---------------------------------------------------------------------------
+# Admin: buyer detail — full profile + order history
+# ---------------------------------------------------------------------------
+@login_required
+def admin_buyer_detail(request, buyer_id):
+    if request.user.role != CustomUser.Role.ADMIN:
+        return redirect("dashboard")
+
+    member = get_object_or_404(
+        Buyer.objects.select_related("tenant"), pk=buyer_id
+    )
+    tenant = member.tenant
+    buyer_orders = Order.objects.filter(buyer=member)
+
+    ctx = {
+        "member": member,
+        "tenant": tenant,
+        "orders_total": buyer_orders.count(),
+        "orders_pending": buyer_orders.filter(
             status__in=[Order.Status.CONFIRMED, Order.Status.FULFILLMENT]
-        ).count()
-        ctx["total_spent"] = (
+        ).count(),
+        "total_spent": (
             buyer_orders.filter(
                 status__in=[Order.Status.DELIVERED, Order.Status.CLOSED]
             ).aggregate(total=models.Sum("total_amount"))["total"]
-        ) or 0
-        ctx["recent_orders"] = buyer_orders.select_related(
+        ) or 0,
+        "recent_orders": buyer_orders.select_related(
             "tenant"
-        ).prefetch_related("items__product").order_by("-created_at")[:5]
-
-    return render(request, "dashboard/member_detail.html", ctx)
+        ).prefetch_related("items__product").order_by("-created_at")[:5],
+    }
+    return render(request, "dashboard/buyer_detail.html", ctx)
 
 
 def _safe_redirect(request, fallback_url_name: str) -> HttpResponseRedirect:
@@ -1194,14 +1266,14 @@ def _safe_redirect(request, fallback_url_name: str) -> HttpResponseRedirect:
 
 
 # ---------------------------------------------------------------------------
-# Admin: approve / suspend buttons used from the admin dashboard
+# Admin: approve / suspend buttons (shared across sellers + buyers)
 # ---------------------------------------------------------------------------
 @login_required
 @require_http_methods(["POST"])
-def admin_approve_member(request, member_id):
+def admin_approve_user(request, user_id):
     if request.user.role != CustomUser.Role.ADMIN:
         return HttpResponseRedirect(reverse("dashboard"))
-    member = get_object_or_404(CustomUser, pk=member_id)
+    member = get_object_or_404(CustomUser, pk=user_id)
     member.status = CustomUser.Status.ACTIVE
     member.save(update_fields=["status", "updated_at"])
     # First member approved for a still-pending tenant → activate the tenant too.
@@ -1224,14 +1296,14 @@ def admin_approve_member(request, member_id):
 
 @login_required
 @require_http_methods(["POST"])
-def admin_suspend_member(request, member_id):
+def admin_suspend_user(request, user_id):
     if request.user.role != CustomUser.Role.ADMIN:
         return HttpResponseRedirect(reverse("dashboard"))
     # Don't let an admin lock themselves out.
-    if str(request.user.id) == str(member_id):
+    if str(request.user.id) == str(user_id):
         messages.error(request, "You can't suspend your own account.")
         return _safe_redirect(request, "dashboard")
-    member = get_object_or_404(CustomUser, pk=member_id)
+    member = get_object_or_404(CustomUser, pk=user_id)
     member.status = CustomUser.Status.SUSPENDED
     member.save(update_fields=["status", "updated_at"])
     messages.warning(request, f"Suspended {member.email}.")

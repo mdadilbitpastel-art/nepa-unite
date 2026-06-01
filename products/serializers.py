@@ -5,7 +5,7 @@ from decimal import Decimal
 import bleach
 from rest_framework import serializers
 
-from products.models import Product, ProductImage
+from products.models import Product, ProductImage, ProductReview, WishlistItem
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -104,6 +104,42 @@ class BulkUploadSerializer(serializers.Serializer):
         # 10 MB ceiling — bigger uploads should use a presigned-S3 flow.
         if value.size > 10 * 1024 * 1024:
             raise serializers.ValidationError("File exceeds 10 MB limit")
+        return value
+
+
+class WishlistItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.name", read_only=True)
+    product_price = serializers.DecimalField(
+        source="product.price", read_only=True, max_digits=10, decimal_places=2
+    )
+    product_image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WishlistItem
+        fields = ("id", "product", "product_name", "product_price",
+                  "product_image_url", "created_at")
+        read_only_fields = ("id", "created_at")
+
+    def get_product_image_url(self, obj) -> str | None:
+        if not obj.product.primary_image:
+            return None
+        req = self.context.get("request")
+        url = obj.product.primary_image.url
+        return req.build_absolute_uri(url) if req else url
+
+
+class ProductReviewSerializer(serializers.ModelSerializer):
+    user_email = serializers.CharField(source="user.email", read_only=True)
+
+    class Meta:
+        model = ProductReview
+        fields = ("id", "product", "user", "user_email", "rating",
+                  "title", "body", "created_at", "updated_at")
+        read_only_fields = ("id", "user", "user_email", "created_at", "updated_at")
+
+    def validate_rating(self, value: int) -> int:
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5.")
         return value
 
 

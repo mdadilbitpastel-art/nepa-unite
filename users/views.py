@@ -13,16 +13,24 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.contrib.auth.tokens import default_token_generator
+from django.urls import reverse
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+
 from notifications.tasks import (
     send_approval_email,
+    send_password_reset_email,
     send_seller_onboarding_email,
     send_suspension_email,
     send_welcome_email,
 )
 from users import auth0_client
-from users.models import CustomUser, Tenant
-from users.permissions import IsAdmin, IsSelfOrAdmin
+from users.models import BuyerAddress, CustomUser, Tenant
+from users.permissions import IsAdmin, IsBuyer, IsSelfOrAdmin
 from users.serializers import (
+    BuyerAddressSerializer,
+    ForgotPasswordSerializer,
     LoginSerializer,
     LogoutSerializer,
     MemberSerializer,
@@ -30,6 +38,7 @@ from users.serializers import (
     RefreshSerializer,
     RegisterResponseSerializer,
     RegisterSerializer,
+    ResetPasswordSerializer,
     TokenResponseSerializer,
 )
 from core.tasks import write_audit_log
@@ -63,18 +72,28 @@ class RegisterView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+        # Buyers self-onboard instantly; sellers wait for admin review
+        # because they list products and receive payouts.
+        is_buyer = data["role"] == CustomUser.Role.BUYER
+        user_status = (
+            CustomUser.Status.ACTIVE if is_buyer else CustomUser.Status.PENDING
+        )
+        tenant_status = (
+            Tenant.Status.ACTIVE if is_buyer else Tenant.Status.PENDING
+        )
+
         with transaction.atomic():
             tenant = Tenant.objects.create(
                 name=data["business_name"],
                 vertical_type=data["vertical_type"],
-                status=Tenant.Status.PENDING,
+                status=tenant_status,
             )
             user = CustomUser.objects.create(
                 email=data["email"],
                 auth0_sub=auth0_user["user_id"],
                 role=data["role"],
                 tenant=tenant,
-                status=CustomUser.Status.PENDING,
+                status=user_status,
             )
 
         send_welcome_email.delay(user.email)
@@ -141,6 +160,59 @@ class LogoutView(APIView):
                 {"detail": "Logout failed"}, status=status.HTTP_502_BAD_GATEWAY
             )
         return Response(status=status.HTTP_200_OK)
+
+
+@method_decorator(
+    ratelimit(key="ip", rate=settings.AUTH_RATE_LIMIT, method="POST", block=True),
+    name="post",
+)
+class ForgotPasswordView(APIView):
+    """Email a reset link. Always returns 200 so this can't be used for
+    user enumeration."""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"].lower()
+        user = CustomUser.objects.filter(email__iexact=email).first()
+        if user is not None:
+            uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            reset_path = reverse("reset_password", args=[uidb64, token])
+            full_url = request.build_absolute_uri(reset_path)
+            send_password_reset_email.delay(user.email, full_url)
+        return Response({"detail": "If an account exists, a reset email has been sent."})
+
+
+class ResetPasswordView(APIView):
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        uid = serializer.validated_data["uid"]
+        token = serializer.validated_data["token"]
+        new_password = serializer.validated_data["new_password"]
+        try:
+            pk = urlsafe_base64_decode(uid).decode()
+            user = CustomUser.objects.get(pk=pk)
+        except (CustomUser.DoesNotExist, ValueError, TypeError, OverflowError):
+            return Response(
+                {"detail": "Invalid or expired reset link."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not default_token_generator.check_token(user, token):
+            return Response(
+                {"detail": "Invalid or expired reset link."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user.set_password(new_password)
+        user.save(update_fields=["password", "updated_at"])
+        return Response({"detail": "Password updated."})
 
 
 # ---------------------------------------------------------------------------
@@ -227,3 +299,34 @@ class AdminMemberViewSet(viewsets.ViewSet):
         )
         send_suspension_email.delay(member.email)
         return Response(MemberSerializer(member).data)
+
+
+# ---------------------------------------------------------------------------
+# /api/v1/addresses — buyer address book
+# ---------------------------------------------------------------------------
+class BuyerAddressViewSet(viewsets.ModelViewSet):
+    """CRUD over the authenticated buyer's saved shipping addresses."""
+
+    serializer_class = BuyerAddressSerializer
+    permission_classes = [IsAuthenticated, IsBuyer]
+
+    def get_queryset(self):
+        return BuyerAddress.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        addr = serializer.save(user=self.request.user)
+        if addr.is_default:
+            BuyerAddress.objects.filter(user=self.request.user).exclude(pk=addr.pk).update(is_default=False)
+
+    def perform_update(self, serializer):
+        addr = serializer.save()
+        if addr.is_default:
+            BuyerAddress.objects.filter(user=self.request.user).exclude(pk=addr.pk).update(is_default=False)
+
+    @action(detail=True, methods=["post"], url_path="set-default")
+    def set_default(self, request, pk=None):
+        addr = get_object_or_404(BuyerAddress, pk=pk, user=request.user)
+        BuyerAddress.objects.filter(user=request.user).update(is_default=False)
+        addr.is_default = True
+        addr.save(update_fields=["is_default", "updated_at"])
+        return Response(BuyerAddressSerializer(addr).data)

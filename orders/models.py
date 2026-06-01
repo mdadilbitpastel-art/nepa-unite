@@ -97,6 +97,42 @@ class OrderItem(models.Model):
         db_table = "orders_orderitem"
 
 
+class Cart(models.Model):
+    """One persistent cart per buyer. Auto-created on first read/write."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="cart",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "orders_cart"
+
+
+class CartItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(
+        "products.Product", on_delete=models.CASCADE, related_name="cart_items"
+    )
+    quantity = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "orders_cartitem"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cart", "product"], name="uniq_cartitem_per_cart_product"
+            ),
+        ]
+        ordering = ["-updated_at"]
+
+
 class OrderActivityLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.ForeignKey(

@@ -8,13 +8,17 @@ from rest_framework.parsers import FormParser, MultiPartParser, JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from django.db.models import Avg, Count
+
 from core.models import Job
-from products.models import Product
+from products.models import Product, ProductReview, WishlistItem
 from products.serializers import (
-    ProductSerializer,
-    ProductDetailSerializer,
     BulkUploadSerializer,
+    ProductDetailSerializer,
+    ProductReviewSerializer,
     ProductSearchQuerySerializer,
+    ProductSerializer,
+    WishlistItemSerializer,
 )
 from products.services import contract_price_for_buyer, search_products
 from products.tasks import (
@@ -23,7 +27,7 @@ from products.tasks import (
     remove_product_from_index,
 )
 from users.models import CustomUser
-from users.permissions import IsSeller
+from users.permissions import IsBuyer, IsSeller
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -40,8 +44,13 @@ class ProductViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_permissions(self):
-        if self.action == "search":
+        if self.action in ("search", "categories", "by_seller"):
             return [AllowAny()]
+        if self.action == "reviews":
+            # GET is public; POST requires an authed buyer (enforced inside).
+            if self.request.method == "GET":
+                return [AllowAny()]
+            return [IsAuthenticated()]
         if self.action in ("create", "update", "partial_update", "destroy", "bulk_upload"):
             return [IsAuthenticated(), IsSeller()]
         return [IsAuthenticated()]
@@ -187,10 +196,155 @@ class ProductViewSet(viewsets.ModelViewSet):
             "used_fallback": result.used_fallback,
         })
 
+    # ------------------------------------------------------------------
+    # GET /api/v1/products/categories  (public)
+    # Distinct categories derived from products.attributes->>'category'.
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny],
+            authentication_classes=[])
+    def categories(self, request):
+        rows = (
+            Product.objects.filter(status=Product.Status.ACTIVE)
+            .exclude(attributes__category__isnull=True)
+            .exclude(attributes__category="")
+            .values_list("attributes__category", flat=True)
+        )
+        counts: dict[str, int] = {}
+        for c in rows:
+            if not c:
+                continue
+            counts[c] = counts.get(c, 0) + 1
+        items = [{"name": name, "product_count": n} for name, n in sorted(counts.items())]
+        return Response({"items": items})
+
+    # ------------------------------------------------------------------
+    # GET /api/v1/products/by-seller/{seller_id}  (public storefront)
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=["get"], url_path=r"by-seller/(?P<seller_id>[^/.]+)",
+            permission_classes=[AllowAny], authentication_classes=[])
+    def by_seller(self, request, seller_id=None):
+        qs = (
+            Product.objects.filter(seller_id=seller_id, status=Product.Status.ACTIVE)
+            .order_by("-created_at")
+        )
+        page = int(request.query_params.get("page", 1))
+        page_size = min(int(request.query_params.get("page_size", 20)), 100)
+        total = qs.count()
+        start = (page - 1) * page_size
+        items = ProductSerializer(
+            qs[start:start + page_size], many=True, context={"request": request}
+        ).data
+        return Response({
+            "total": total, "page": page, "page_size": page_size, "items": items,
+        })
+
+    # ------------------------------------------------------------------
+    # GET /api/v1/products/{id}/reviews  (public)
+    # POST /api/v1/products/{id}/reviews  (buyer)
+    # ------------------------------------------------------------------
+    @action(detail=True, methods=["get", "post"], url_path="reviews",
+            permission_classes=[AllowAny])
+    def reviews(self, request, pk=None):
+        product = self.get_object()
+        if request.method == "POST":
+            if not (request.user and request.user.is_authenticated):
+                return Response(
+                    {"detail": "Authentication required."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            if request.user.role != CustomUser.Role.BUYER:
+                return Response(
+                    {"detail": "Only buyers can write reviews."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            serializer = ProductReviewSerializer(
+                data={**request.data, "product": str(product.pk)}
+            )
+            serializer.is_valid(raise_exception=True)
+            try:
+                review = serializer.save(user=request.user, product=product)
+            except Exception:  # IntegrityError on unique constraint
+                return Response(
+                    {"detail": "You've already reviewed this product."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            return Response(
+                ProductReviewSerializer(review).data,
+                status=status.HTTP_201_CREATED,
+            )
+        # GET
+        qs = product.reviews.select_related("user").all()
+        agg = qs.aggregate(avg=Avg("rating"), count=Count("id"))
+        return Response({
+            "average_rating": round(agg["avg"] or 0, 2),
+            "count": agg["count"],
+            "items": ProductReviewSerializer(qs, many=True).data,
+        })
+
 
 # ---------------------------------------------------------------------------
 # GET /api/v1/jobs/{job_id}  (used by bulk-upload polling)
 # ---------------------------------------------------------------------------
+class WishlistViewSet(viewsets.ModelViewSet):
+    """Buyer's wishlist — add / list / remove favorited products."""
+
+    serializer_class = WishlistItemSerializer
+    permission_classes = [IsAuthenticated, IsBuyer]
+    http_method_names = ["get", "post", "delete"]
+
+    def get_queryset(self):
+        return (
+            WishlistItem.objects.filter(user=self.request.user)
+            .select_related("product")
+        )
+
+    def create(self, request, *args, **kwargs):
+        product_id = request.data.get("product")
+        if not product_id:
+            return Response(
+                {"detail": "product is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not Product.objects.filter(pk=product_id).exists():
+            return Response(
+                {"detail": "Product not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        item, created = WishlistItem.objects.get_or_create(
+            user=request.user, product_id=product_id
+        )
+        return Response(
+            WishlistItemSerializer(item, context={"request": request}).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class ProductReviewViewSet(
+    viewsets.GenericViewSet,
+):
+    """Buyer manages their own reviews (update / delete)."""
+
+    serializer_class = ProductReviewSerializer
+    permission_classes = [IsAuthenticated, IsBuyer]
+    queryset = ProductReview.objects.all()
+
+    def partial_update(self, request, pk=None):
+        review = self.get_object()
+        if review.user_id != request.user.pk:
+            raise PermissionDenied("Can only edit your own review.")
+        serializer = self.get_serializer(review, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(ProductReviewSerializer(review).data)
+
+    def destroy(self, request, pk=None):
+        review = self.get_object()
+        if review.user_id != request.user.pk:
+            raise PermissionDenied("Can only delete your own review.")
+        review.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class JobViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 

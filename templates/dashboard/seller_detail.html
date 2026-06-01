@@ -1,0 +1,203 @@
+{% extends "base_app.html" %}
+{% block title %}{{ member.email }} · Sellers · NEPA Unite{% endblock %}
+{% block header_title %}Seller Details{% endblock %}
+
+{% block app_content %}
+
+<div class="md-hero">
+  <div class="md-hero-left">
+    <div class="md-avatar">
+      {% if tenant and tenant.logo %}
+        <img src="{{ tenant.logo.url }}" alt="" data-fallback>
+      {% else %}
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>
+      {% endif %}
+    </div>
+    <div>
+      <div class="md-name">{% if tenant %}{{ tenant.name }}{% else %}{{ member.email }}{% endif %}</div>
+      <div class="md-email">{% if member.first_name %}{{ member.first_name }} {{ member.last_name }} &middot; {% endif %}{{ member.email }}</div>
+      <div class="md-badges">
+        <span class="pill role-seller">Seller</span>
+        <span class="pill {{ member.status }}">{{ member.get_status_display }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="md-hero-right">
+    <div class="md-hero-actions">
+      {% if member.status == 'pending' %}
+        <form method="post" action="{% url 'admin_approve_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-primary btn-sm">Approve</button></form>
+        <form method="post" action="{% url 'admin_suspend_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-danger btn-sm">Reject</button></form>
+      {% elif member.status == 'active' and member.id != user.id %}
+        <form method="post" action="{% url 'admin_suspend_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-danger btn-sm">Suspend</button></form>
+      {% elif member.status == 'suspended' %}
+        <form method="post" action="{% url 'admin_approve_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-primary btn-sm">Reactivate</button></form>
+      {% endif %}
+      <a href="{% url 'admin_sellers' %}" class="btn btn-secondary btn-sm">Back to sellers</a>
+    </div>
+  </div>
+</div>
+
+<div class="md-info-grid">
+  <div class="md-info-card">
+    <div class="md-info-label">Phone</div>
+    <div class="md-info-value">{{ member.phone|default:"—" }}</div>
+  </div>
+  <div class="md-info-card">
+    <div class="md-info-label">Industry</div>
+    <div class="md-info-value">{% if tenant %}{{ tenant.get_vertical_type_display }}{% else %}—{% endif %}</div>
+  </div>
+  <div class="md-info-card">
+    <div class="md-info-label">Address</div>
+    <div class="md-info-value">{% if tenant and tenant.address_line1 %}{{ tenant.address_line1 }}{% if tenant.city %}, {{ tenant.city }}{% endif %}{% if tenant.state %}, {{ tenant.state }}{% endif %} {{ tenant.zip_code }}{% else %}—{% endif %}</div>
+  </div>
+  <div class="md-info-card">
+    <div class="md-info-label">Joined</div>
+    <div class="md-info-value">{{ member.created_at|date:"M j, Y" }}</div>
+  </div>
+</div>
+
+<div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+  <div class="stat">
+    <div class="stat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/></svg></div>
+    <div><div class="label">Products</div><div class="value">{{ products_total }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon success"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+    <div><div class="label">Active</div><div class="value">{{ products_active }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon warning"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+    <div><div class="label">Low Stock</div><div class="value">{{ low_stock }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon accent"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+    <div><div class="label">Orders</div><div class="value">{{ orders_total }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon info"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+    <div><div class="label">Pending</div><div class="value">{{ orders_pending }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon" style="background:#10b981;box-shadow:0 4px 12px rgba(16,185,129,.35);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+    <div><div class="label">Revenue</div><div class="value">${{ revenue }}</div></div>
+  </div>
+</div>
+
+{% if top_products %}
+<div class="card">
+  <div class="card-header">
+    <h2>Top Products</h2>
+    <a href="{% url 'seller_products' %}?seller={{ member.id }}" class="btn btn-secondary btn-sm">View all products</a>
+  </div>
+  <table>
+    <thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for p in top_products %}
+      <tr>
+        <td class="md-cell-pad">
+          <div class="md-cell">
+            <span class="md-thumb"><span class="md-thumb-ph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></span>{% if p.primary_image %}<img src="{{ p.primary_image.url }}" alt="" data-fallback>{% endif %}</span>
+            <span class="md-cell-info"><span class="md-cell-name">{{ p.name }}</span><span class="md-cell-sub">{{ p.sku }}</span></span>
+          </div>
+        </td>
+        <td><strong>${{ p.price }}</strong></td>
+        <td>{{ p.inventory_count }}</td>
+        <td><span class="pill {{ p.status }}">{{ p.get_status_display }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if recent_orders %}
+<div class="card">
+  <div class="card-header">
+    <h2>Recent Orders</h2>
+    <a href="{% url 'orders' %}?seller={{ member.id }}" class="btn btn-secondary btn-sm">View all orders</a>
+  </div>
+  <table>
+    <thead><tr><th>Product</th><th>Order</th><th>Buyer</th><th>Status</th><th>Total</th><th>Date</th></tr></thead>
+    <tbody>
+      {% for o in recent_orders %}
+      <tr>
+        {% with first_item=o.items.all.0 %}
+        <td class="md-cell-pad">
+          <div class="md-cell">
+            <span class="md-thumb"><span class="md-thumb-ph"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></span>{% if first_item and first_item.product.primary_image %}<img src="{{ first_item.product.primary_image.url }}" alt="" data-fallback>{% endif %}</span>
+            <span class="md-cell-info"><span class="md-cell-name">{% if first_item %}{{ first_item.product.name }}{% else %}—{% endif %}</span>{% if o.items.all|length > 1 %}<span class="md-cell-sub">+{{ o.items.all|length|add:"-1" }} more</span>{% endif %}</span>
+          </div>
+        </td>
+        {% endwith %}
+        <td><a href="{% url 'order_detail' o.id %}"><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></a></td>
+        <td>{{ o.buyer.email }}</td>
+        <td><span class="pill {{ o.status }}">{{ o.get_status_display }}</span></td>
+        <td><strong>${{ o.total_amount }}</strong></td>
+        <td class="muted">{{ o.created_at|date:"M j, Y" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<style>
+  .md-hero {
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+    padding:18px 24px;margin-bottom:var(--space-4);box-shadow:var(--shadow-sm);
+    background-image:radial-gradient(500px 180px at 0% 100%,var(--accent-soft),transparent 70%);
+  }
+  .md-hero-left { display:flex;align-items:center;gap:16px; }
+  .md-avatar {
+    width:64px;height:64px;border-radius:14px;flex-shrink:0;
+    background:var(--surface-2);border:2px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;color:var(--text-subtle);
+  }
+  .md-avatar img { width:100%;height:100%;object-fit:cover; }
+  .md-name { font-size:18px;font-weight:700;color:var(--text);line-height:1.2; }
+  .md-email { font-size:12px;color:var(--text-muted);margin-top:2px; }
+  .md-badges { display:flex;gap:6px;margin-top:6px; }
+  .md-hero-actions { display:flex;gap:8px;align-items:center; }
+  .md-hero-actions form { display:inline; }
+
+  .md-info-grid {
+    display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-3);
+    margin-bottom:var(--space-4);
+  }
+  .md-info-card {
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);
+    padding:12px 16px;
+  }
+  .md-info-label { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:600;margin-bottom:2px; }
+  .md-info-value { font-size:14px;font-weight:600;color:var(--text); }
+  .stat .value { font-size:22px; }
+
+  .md-cell { display:flex;align-items:center;gap:12px;min-width:0; }
+  .md-thumb {
+    position:relative;width:44px;height:44px;border-radius:8px;
+    background:var(--surface-2);border:1px solid var(--border);
+    color:var(--text-subtle);flex-shrink:0;overflow:hidden;
+  }
+  .md-thumb-ph {
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .md-thumb img {
+    position:absolute;inset:0;width:100%;height:100%;
+    object-fit:cover;background:var(--surface-2);display:block;
+  }
+  .md-cell-info { display:flex;flex-direction:column;min-width:0;gap:1px;line-height:1.25; }
+  .md-cell-name {
+    font-weight:600;color:var(--text);font-size:13px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .md-cell-sub {
+    font-size:11px;color:var(--text-subtle);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    letter-spacing:.3px;
+  }
+  td.md-cell-pad { padding-top:10px;padding-bottom:10px; }
+</style>
+{% endblock %}

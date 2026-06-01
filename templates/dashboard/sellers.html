@@ -1,6 +1,6 @@
 {% extends "base_app.html" %}
-{% block title %}Members · NEPA Unite{% endblock %}
-{% block header_title %}Members{% endblock %}
+{% block title %}Sellers · NEPA Unite{% endblock %}
+{% block header_title %}Sellers{% endblock %}
 
 {% block extra_head %}
 {{ block.super }}
@@ -60,8 +60,7 @@
     margin-left: auto;
     flex-wrap: wrap;
   }
-  .filter-bar input[type="search"],
-  .filter-bar select {
+  .filter-bar input[type="search"] {
     padding: 8px 12px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-md);
@@ -69,13 +68,10 @@
     color: var(--text);
     font-size: 13px;
     font-family: inherit;
+    min-width: 220px;
     transition: background-color .15s, border-color .15s, box-shadow .15s;
   }
-  .filter-bar input[type="search"] {
-    min-width: 220px;
-  }
-  .filter-bar input[type="search"]:focus,
-  .filter-bar select:focus {
+  .filter-bar input[type="search"]:focus {
     outline: none;
     background: var(--surface);
     border-color: var(--primary);
@@ -93,20 +89,13 @@
     font-size: 12.5px;
     text-transform: uppercase;
     flex-shrink: 0;
+    overflow: hidden;
+  }
+  .member-row .avatar img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
   }
   .member-row .email-cell {
     display: flex; align-items: center; gap: 10px;
-  }
-  .member-row .self-badge {
-    background: var(--accent-soft);
-    color: var(--accent-hover);
-    font-size: 10.5px;
-    font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 999px;
-    text-transform: uppercase;
-    letter-spacing: .4px;
-    margin-left: 6px;
   }
   .row-actions {
     display: flex; justify-content: flex-end; gap: 6px;
@@ -119,9 +108,9 @@
 <div class="stat-grid">
   <div class="stat">
     <div class="stat-icon">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 17l8 4 8-4"/></svg>
     </div>
-    <div><div class="label">Total members</div><div class="value">{{ stats.total }}</div></div>
+    <div><div class="label">Total sellers</div><div class="value">{{ stats.total }}</div></div>
   </div>
   <div class="stat">
     <div class="stat-icon success">
@@ -146,19 +135,19 @@
 <div class="card">
   <div class="filter-bar">
     <div class="chips">
-      <a href="?{% if role_filter %}role={{ role_filter }}&{% endif %}{% if q %}q={{ q }}&{% endif %}"
+      <a href="?{% if q %}q={{ q }}{% endif %}"
          class="chip {% if not status_filter %}active{% endif %}">
         All <span class="count">{{ stats.total }}</span>
       </a>
-      <a href="?status=pending{% if role_filter %}&role={{ role_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+      <a href="?status=pending{% if q %}&q={{ q }}{% endif %}"
          class="chip {% if status_filter == 'pending' %}active{% endif %}">
         Pending <span class="count">{{ stats.pending }}</span>
       </a>
-      <a href="?status=active{% if role_filter %}&role={{ role_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+      <a href="?status=active{% if q %}&q={{ q }}{% endif %}"
          class="chip {% if status_filter == 'active' %}active{% endif %}">
         Active <span class="count">{{ stats.active }}</span>
       </a>
-      <a href="?status=suspended{% if role_filter %}&role={{ role_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}"
+      <a href="?status=suspended{% if q %}&q={{ q }}{% endif %}"
          class="chip {% if status_filter == 'suspended' %}active{% endif %}">
         Suspended <span class="count">{{ stats.suspended }}</span>
       </a>
@@ -166,12 +155,6 @@
 
     <form method="get" class="inline-filters auto-search-form">
       {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
-      <select name="role">
-        <option value="">All roles</option>
-        {% for value, label in role_choices %}
-          <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
       <input type="search" name="q" value="{{ q }}" placeholder="Search by email…" autocomplete="off">
     </form>
   </div>
@@ -180,8 +163,7 @@
     <table>
       <thead>
         <tr>
-          <th>Member</th>
-          <th>Role</th>
+          <th>Seller</th>
           <th>Business</th>
           <th>Status</th>
           <th>Joined</th>
@@ -193,47 +175,39 @@
           <tr class="member-row">
             <td>
               <div class="email-cell">
-                <div class="avatar">{% if m.role == 'admin' %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>{% elif m.tenant and m.tenant.logo %}<img src="{{ m.tenant.logo.url }}" alt="" data-fallback style="width:100%;height:100%;object-fit:cover;border-radius:50%;">{% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</div>
-                <div>
-                  {{ m.email }}
-                  {% if m.id == user.id %}<span class="self-badge">You</span>{% endif %}
-                </div>
+                <div class="avatar">{% if m.tenant and m.tenant.logo %}<img src="{{ m.tenant.logo.url }}" alt="" data-fallback>{% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</div>
+                <div>{{ m.email }}</div>
               </div>
             </td>
-            <td><span class="pill role-{{ m.role }}">{{ m.role }}</span></td>
             <td>{{ m.tenant.name|default:"—" }}</td>
             <td><span class="pill {{ m.status }}">{{ m.status }}</span></td>
             <td class="muted">{{ m.created_at|date:"M j, Y" }}</td>
             <td>
               <div class="row-actions">
-                {% if m.role != 'admin' %}
-                <a href="{% url 'admin_member_detail' m.id %}" class="btn btn-secondary btn-sm" title="View details">
+                <a href="{% url 'admin_seller_detail' m.id %}" class="btn btn-secondary btn-sm" title="View details">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   View
                 </a>
-                {% endif %}
-                {% if m.id == user.id %}
-                  <span class="muted text-xs">No actions on your own account</span>
-                {% elif m.status == 'pending' %}
-                  <form method="post" action="{% url 'admin_approve_member' m.id %}">
+                {% if m.status == 'pending' %}
+                  <form method="post" action="{% url 'admin_approve_user' m.id %}">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <button type="submit" class="btn btn-primary btn-sm">Approve</button>
                   </form>
-                  <form method="post" action="{% url 'admin_suspend_member' m.id %}">
+                  <form method="post" action="{% url 'admin_suspend_user' m.id %}">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <button type="submit" class="btn btn-secondary btn-sm">Reject</button>
                   </form>
                 {% elif m.status == 'active' %}
-                  <form method="post" action="{% url 'admin_suspend_member' m.id %}"
+                  <form method="post" action="{% url 'admin_suspend_user' m.id %}"
                         data-confirm="Suspend {{ m.email|escapejs }}? They won't be able to sign in.">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <button type="submit" class="btn btn-secondary btn-sm">Suspend</button>
                   </form>
                 {% elif m.status == 'suspended' %}
-                  <form method="post" action="{% url 'admin_approve_member' m.id %}">
+                  <form method="post" action="{% url 'admin_approve_user' m.id %}">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <button type="submit" class="btn btn-primary btn-sm">Reactivate</button>
@@ -251,12 +225,12 @@
       <div class="empty-icon">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       </div>
-      <h3>No members match these filters</h3>
+      <h3>No sellers match these filters</h3>
       <p class="text-sm">
-        {% if status_filter or role_filter or q %}
+        {% if status_filter or q %}
           Try clearing filters or searching for a different email.
         {% else %}
-          No one has signed up yet.
+          No sellers have signed up yet.
         {% endif %}
       </p>
     </div>

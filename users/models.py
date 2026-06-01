@@ -155,3 +155,63 @@ class CustomUser(AbstractBaseUser):
 
     def __str__(self) -> str:
         return f"{self.email} ({self.role})"
+
+
+class SellerManager(CustomUserManager):
+    def get_queryset(self):
+        return super().get_queryset().filter(role=CustomUser.Role.SELLER)
+
+
+class Seller(CustomUser):
+    """Read-side proxy over CustomUser scoped to sellers."""
+
+    objects = SellerManager()
+
+    class Meta:
+        proxy = True
+        verbose_name = "Seller"
+        verbose_name_plural = "Sellers"
+
+
+class BuyerManager(CustomUserManager):
+    def get_queryset(self):
+        return super().get_queryset().filter(role=CustomUser.Role.BUYER)
+
+
+class Buyer(CustomUser):
+    """Read-side proxy over CustomUser scoped to buyers."""
+
+    objects = BuyerManager()
+
+    class Meta:
+        proxy = True
+        verbose_name = "Buyer"
+        verbose_name_plural = "Buyers"
+
+
+class BuyerAddress(models.Model):
+    """Saved shipping addresses for a buyer's address book."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        CustomUser, on_delete=models.CASCADE, related_name="addresses"
+    )
+    label = models.CharField(max_length=64, blank=True, default="")
+    recipient_name = models.CharField(max_length=255)
+    phone = models.CharField(max_length=30)
+    line1 = models.CharField(max_length=255)
+    line2 = models.CharField(max_length=255, blank=True, default="")
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    zip_code = models.CharField(max_length=20)
+    country = models.CharField(max_length=100, default="US")
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "users_buyeraddress"
+        ordering = ["-is_default", "-updated_at"]
+
+    def __str__(self) -> str:
+        return f"{self.label or self.recipient_name} ({self.user.email})"

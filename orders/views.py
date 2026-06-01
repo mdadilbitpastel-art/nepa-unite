@@ -6,8 +6,15 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from orders.models import Order
+from django.shortcuts import get_object_or_404
+
+from orders.models import Cart, CartItem, Order
 from orders.serializers import (
+    CartAddSerializer,
+    CartCheckoutSerializer,
+    CartItemSerializer,
+    CartSerializer,
+    CartUpdateSerializer,
     OrderCreateSerializer,
     OrderSerializer,
     OrderStatusUpdateSerializer,
@@ -18,7 +25,8 @@ from orders.services import (
     transition_order,
 )
 from orders.state import InvalidTransitionError
-from users.models import CustomUser
+from products.models import Product
+from users.models import BuyerAddress, CustomUser
 from users.permissions import IsBuyer
 
 
@@ -124,3 +132,115 @@ class OrderViewSet(
         if user.role == CustomUser.Role.SELLER and order.items.filter(seller=user).exists():
             return True
         return False
+
+
+# ---------------------------------------------------------------------------
+# /api/v1/cart  — persistent buyer cart
+# ---------------------------------------------------------------------------
+class CartViewSet(viewsets.ViewSet):
+    """Buyer's persistent cart.
+
+    GET    /api/v1/cart/                       → current cart
+    POST   /api/v1/cart/items/                 → add item {product_id, quantity}
+    PATCH  /api/v1/cart/items/{item_id}/       → update quantity
+    DELETE /api/v1/cart/items/{item_id}/       → remove item
+    POST   /api/v1/cart/clear/                 → empty cart
+    POST   /api/v1/cart/checkout/              → convert cart → Order
+    """
+
+    permission_classes = [IsAuthenticated, IsBuyer]
+
+    def _get_cart(self, user) -> Cart:
+        cart, _ = Cart.objects.get_or_create(user=user)
+        return cart
+
+    def list(self, request):
+        cart = self._get_cart(request.user)
+        return Response(CartSerializer(cart, context={"request": request}).data)
+
+    @action(detail=False, methods=["post"], url_path="items")
+    def add_item(self, request):
+        serializer = CartAddSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        pid = serializer.validated_data["product_id"]
+        qty = serializer.validated_data["quantity"]
+        product = get_object_or_404(Product, pk=pid)
+        if product.status != Product.Status.ACTIVE:
+            return Response({"detail": "Product not available."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        cart = self._get_cart(request.user)
+        item, created = CartItem.objects.get_or_create(
+            cart=cart, product=product, defaults={"quantity": qty},
+        )
+        if not created:
+            item.quantity = item.quantity + qty
+            item.save(update_fields=["quantity", "updated_at"])
+        return Response(
+            CartSerializer(cart, context={"request": request}).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["patch", "delete"],
+            url_path=r"items/(?P<item_id>[^/.]+)")
+    def modify_item(self, request, item_id=None):
+        cart = self._get_cart(request.user)
+        item = get_object_or_404(CartItem, pk=item_id, cart=cart)
+        if request.method == "DELETE":
+            item.delete()
+            return Response(CartSerializer(cart, context={"request": request}).data)
+        serializer = CartUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        item.quantity = serializer.validated_data["quantity"]
+        item.save(update_fields=["quantity", "updated_at"])
+        return Response(CartSerializer(cart, context={"request": request}).data)
+
+    @action(detail=False, methods=["post"], url_path="clear")
+    def clear(self, request):
+        cart = self._get_cart(request.user)
+        cart.items.all().delete()
+        return Response(CartSerializer(cart, context={"request": request}).data)
+
+    @action(detail=False, methods=["post"], url_path="checkout")
+    def checkout(self, request):
+        serializer = CartCheckoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        cart = self._get_cart(request.user)
+        if not cart.items.exists():
+            return Response({"detail": "Cart is empty."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Resolve shipping: either a saved address_id or inline fields.
+        shipping: dict = {}
+        if vd.get("address_id"):
+            addr = get_object_or_404(
+                BuyerAddress, pk=vd["address_id"], user=request.user
+            )
+            shipping = {
+                "shipping_name": addr.recipient_name,
+                "shipping_phone": addr.phone,
+                "shipping_address_line1": addr.line1,
+                "shipping_address_line2": addr.line2,
+                "shipping_city": addr.city,
+                "shipping_state": addr.state,
+                "shipping_zip": addr.zip_code,
+                "buyer_notes": vd.get("buyer_notes", ""),
+            }
+        else:
+            shipping = {k: vd.get(k, "") for k in (
+                "shipping_name", "shipping_phone",
+                "shipping_address_line1", "shipping_address_line2",
+                "shipping_city", "shipping_state", "shipping_zip",
+                "buyer_notes",
+            )}
+
+        items = [
+            {"product_id": str(i.product_id), "quantity": i.quantity}
+            for i in cart.items.all()
+        ]
+        try:
+            order = create_order(buyer=request.user, items=items, shipping=shipping)
+        except OrderCreationError as exc:
+            raise ValidationError(str(exc))
+        cart.items.all().delete()
+        return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)

@@ -31,6 +31,28 @@
   .app-sidebar .brand-mark { color: #fff; padding: 4px 10px; }
   .app-sidebar .brand-mark .brand-text { font-size: 17px; }
 
+  /* ---- NEPA Unite logo — clean, refined treatment ---- */
+  .app-sidebar .brand-mark,
+  .app-topbar .brand-mark { gap:11px; }
+
+  /* SVG mark — soft lift off the background, no glare */
+  .app-sidebar .brand-mark svg,
+  .app-topbar .brand-mark svg {
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));
+  }
+
+  /* Wordmark — crisp, balanced weight + spacing */
+  .app-sidebar .brand-mark .brand-text,
+  .app-topbar .brand-mark .brand-text {
+    font-weight:700;letter-spacing:.4px;color:#f3f5f8;
+  }
+  /* "Unite" — warm solid gold, gently raised */
+  .app-sidebar .brand-mark .brand-text .brand-text-secondary,
+  .app-topbar .brand-mark .brand-text .brand-text-secondary {
+    color:#e7b75e;font-weight:800;
+    text-shadow:0 1px 2px rgba(120,80,15,.35);
+  }
+
   .nav-section { display: flex; flex-direction: column; gap: 2px; }
   .nav-section .section-label {
     font-size: 10.5px;
@@ -131,12 +153,47 @@
 
   .profile-bar {
     display:flex;align-items:center;justify-content:space-between;
-    padding:0 0 16px 0;margin-bottom:20px;
+    padding:14px 32px;margin:-24px -32px 20px -32px;
     border-bottom:1px solid var(--border);
+    position:sticky;top:0;z-index:50;
+    background:rgba(251,243,227,.72);
+    -webkit-backdrop-filter:saturate(180%) blur(14px);
+    backdrop-filter:saturate(180%) blur(14px);
+    box-shadow:0 8px 20px -4px rgba(15,23,42,.18), 0 4px 8px -2px rgba(15,23,42,.1);
+    transition:padding .6s cubic-bezier(.4,0,.2,1),
+               box-shadow .6s cubic-bezier(.4,0,.2,1),
+               background-color .3s;
+  }
+  [data-theme="dark"] .profile-bar {
+    background:rgba(40,53,72,.72);
+    box-shadow:0 8px 20px -4px rgba(0,0,0,.6), 0 4px 8px -2px rgba(0,0,0,.4);
+  }
+  .profile-bar.is-stuck {
+    padding:10px 32px;
+    background:rgba(251,243,227,.88);
+    box-shadow:0 14px 28px -8px rgba(15,23,42,.28), 0 6px 12px -4px rgba(15,23,42,.16);
+  }
+  [data-theme="dark"] .profile-bar.is-stuck {
+    background:rgba(40,53,72,.88);
+    box-shadow:0 14px 28px -8px rgba(0,0,0,.75), 0 6px 12px -4px rgba(0,0,0,.5);
   }
   .profile-bar-title {
-    font-size:30px;font-weight:700;color:var(--text);
+    transition:font-size .6s cubic-bezier(.4,0,.2,1);
+  }
+  .profile-bar.is-stuck .profile-bar-title {
+    font-size:22px;
+  }
+  .profile-bar-title {
+    font-size:30px;font-weight:800;
     line-height:1.2;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--accent);
+    background:linear-gradient(180deg,#ffe9b0 0%,#f4c45f 38%,#e0a23c 66%,#fff0c8 100%);
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+  [data-theme="dark"] .profile-bar-title {
+    background:linear-gradient(180deg,#fff2c2 0%,#ffcf6b 38%,#eab24a 66%,#fff4d4 100%);
+    -webkit-background-clip:text;background-clip:text;
   }
   .profile-bar-right {
     display:flex;align-items:center;gap:14px;
@@ -285,9 +342,13 @@
         Dashboard
       </a>
       {% if user.role == 'admin' %}
-        <a href="{% url 'admin_members' %}" class="nav-item {% if request.resolver_match.url_name == 'admin_members' %}active{% endif %}">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-          Members
+        <a href="{% url 'admin_sellers' %}" class="nav-item {% if request.resolver_match.url_name == 'admin_sellers' or request.resolver_match.url_name == 'admin_seller_detail' %}active{% endif %}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 17l8 4 8-4"/></svg>
+          Sellers
+        </a>
+        <a href="{% url 'admin_buyers' %}" class="nav-item {% if request.resolver_match.url_name == 'admin_buyers' or request.resolver_match.url_name == 'admin_buyer_detail' %}active{% endif %}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+          Buyers
         </a>
       {% endif %}
       {% if user.role == 'seller' or user.role == 'admin' %}
@@ -308,17 +369,23 @@
       {% endif %}
     </div>
 
+    {% if user.role == 'admin' or user.role == 'seller' or user.role == 'auditor' %}
     <div class="nav-section">
       <div class="section-label">Developer</div>
+      {% if user.role == 'admin' or user.role == 'seller' %}
       <a href="{% url 'api_reference' %}" class="nav-item {% if request.resolver_match.url_name == 'api_reference' %}active{% endif %}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        API docs
+        Integrations
       </a>
+      {% endif %}
+      {% if user.role == 'admin' or user.role == 'auditor' %}
       <a href="{% url 'system_health' %}" class="nav-item {% if request.resolver_match.url_name == 'system_health' %}active{% endif %}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         Health
       </a>
+      {% endif %}
     </div>
+    {% endif %}
 
     <button class="theme-toggle" data-theme-toggle aria-label="Toggle theme">
       <svg class="theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
@@ -426,5 +493,16 @@
 <script src="{% static 'js/confirms.js' %}" defer></script>
 <script src="{% static 'js/image_preview.js' %}" defer></script>
 <script src="{% static 'js/image_fallback.js' %}" defer></script>
+<script>
+  (function () {
+    var bar = document.querySelector('.profile-bar');
+    if (!bar) return;
+    var update = function () {
+      bar.classList.toggle('is-stuck', window.scrollY > 8);
+    };
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+</script>
 {% block extra_js %}{% endblock %}
 {% endblock %}

@@ -1,6 +1,7 @@
 """URL routes for the HTML auth UI (separate from the JSON API routes)."""
 
 from django.urls import path
+from django.views.generic import RedirectView
 
 from users import views_html
 
@@ -19,7 +20,9 @@ urlpatterns = [
     path("dashboard/profile/", views_html.profile_view, name="profile"),
     path("dashboard/change-password/", views_html.change_password_confirm, name="change_password_confirm"),
     path("dashboard/", views_html.dashboard_view, name="dashboard"),
-    path("dashboard/members/", views_html.admin_members_view, name="admin_members"),
+    path("dashboard/sellers/", views_html.admin_sellers_view, name="admin_sellers"),
+    path("dashboard/buyers/", views_html.admin_buyers_view, name="admin_buyers"),
+    path("dashboard/members/", RedirectView.as_view(pattern_name="admin_sellers", permanent=False)),
     path("dashboard/products/", views_html.seller_products_view, name="seller_products"),
     path("dashboard/products/<uuid:product_id>/", views_html.admin_product_detail, name="admin_product_detail"),
     path("dashboard/products/new/", views_html.seller_product_create, name="seller_product_create"),
@@ -34,18 +37,23 @@ urlpatterns = [
     path("dashboard/api/", views_html.api_reference_view, name="api_reference"),
     path("dashboard/health/", views_html.system_health_view, name="system_health"),
     path(
-        "dashboard/members/<uuid:member_id>/",
-        views_html.admin_member_detail,
-        name="admin_member_detail",
+        "dashboard/sellers/<uuid:seller_id>/",
+        views_html.admin_seller_detail,
+        name="admin_seller_detail",
     ),
     path(
-        "dashboard/members/<uuid:member_id>/approve/",
-        views_html.admin_approve_member,
-        name="admin_approve_member",
+        "dashboard/buyers/<uuid:buyer_id>/",
+        views_html.admin_buyer_detail,
+        name="admin_buyer_detail",
     ),
     path(
-        "dashboard/members/<uuid:member_id>/suspend/",
-        views_html.admin_suspend_member,
-        name="admin_suspend_member",
+        "dashboard/users/<uuid:user_id>/approve/",
+        views_html.admin_approve_user,
+        name="admin_approve_user",
+    ),
+    path(
+        "dashboard/users/<uuid:user_id>/suspend/",
+        views_html.admin_suspend_user,
+        name="admin_suspend_user",
     ),
 ]
