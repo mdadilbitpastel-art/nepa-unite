@@ -14,7 +14,7 @@ class SecurityHeadersMiddleware:
             "default-src 'self'; "
             "style-src 'self' 'unsafe-inline'; "
             "script-src 'self' https://cdn.jsdelivr.net; "
-            "img-src 'self' data: blob:"
+            "img-src 'self' data: blob: https://res.cloudinary.com"
         ),
         "Referrer-Policy": "same-origin",
     }
