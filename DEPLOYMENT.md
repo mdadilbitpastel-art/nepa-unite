@@ -8,6 +8,37 @@ break-glass situations.
 
 ---
 
+## 0. Quick deploy to Render (free tier)
+
+The repo ships a `render.yaml` Blueprint that provisions a free Postgres
+database and a Python web service in one shot. Same codebase as local —
+production behaviour is selected purely by `DJANGO_SETTINGS_MODULE`
+(`nepa_unite.settings.production` on Render, `...development` locally).
+
+1. Push this repo to GitHub (already done if you're reading this on `main`).
+2. In Render: **New +** → **Blueprint**, pick this repo. Render reads
+   `render.yaml` and shows the DB + web service it will create.
+3. Fill the secrets it prompts for (marked `sync: false`): `EMAIL_HOST_USER`,
+   `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`, and Stripe keys if used.
+   `DJANGO_SECRET_KEY` is auto-generated; `DATABASE_URL` is auto-wired.
+4. Click **Apply**. Render runs `./build.sh` (install → `collectstatic` →
+   `migrate`) then starts `gunicorn nepa_unite.wsgi:application`.
+5. First deploy done — create an admin user from the Render **Shell** tab:
+   `python manage.py createsuperuser`.
+
+Notes:
+- **Redis is optional.** With no `REDIS_URL` the app uses an in-memory cache
+  and runs Celery tasks eagerly — fine for a single web service. To enable
+  background workers, add a Render Key Value instance and set `REDIS_URL`
+  (uncomment the block in `render.yaml`), plus a separate worker service.
+- **Media uploads are ephemeral** on Render's free disk (lost on redeploy).
+  For persistent product images, enable Cloudinary (see the commented block
+  in `settings/base.py` + `requirements.txt`) or attach a Render Disk.
+- The `*.onrender.com` hostname is added to `ALLOWED_HOSTS` /
+  `CSRF_TRUSTED_ORIGINS` automatically via `RENDER_EXTERNAL_HOSTNAME`.
+
+---
+
 ## 1. First-time production setup
 
 ### 1.1 AWS infrastructure (one-time)

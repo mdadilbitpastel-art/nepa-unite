@@ -47,6 +47,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # Serve static files in production (no nginx/CDN needed on Render).
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -100,25 +102,36 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "users.CustomUser"
 
 # ---------------------------------------------------------------------------
-# Cache (django-redis) — also Celery uses the same Redis instance
+# Cache (django-redis) — also Celery uses the same Redis instance.
+# Redis is OPTIONAL: if REDIS_URL is unset (e.g. a single-service Render
+# deploy) we fall back to local-memory cache and run Celery tasks eagerly,
+# so the app boots and serves without an external Redis/worker.
 # ---------------------------------------------------------------------------
-REDIS_URL = env("REDIS_URL")
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": REDIS_URL,
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-    }
-}
+REDIS_URL = env("REDIS_URL", default="")
 
-# ---------------------------------------------------------------------------
-# Celery
-# ---------------------------------------------------------------------------
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
-CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
-CELERY_TASK_ALWAYS_EAGER = False
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+        }
+    }
+    CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
+    CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
+    CELERY_TASK_ALWAYS_EAGER = False
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"
+    CELERY_TASK_ALWAYS_EAGER = True
+
 CELERY_TIMEZONE = "UTC"
 CELERY_TASK_TRACK_STARTED = True
 
@@ -251,6 +264,16 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# WhiteNoise: compress static assets and serve them straight from the app.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 # User uploads (product images, etc.). DEFAULT_FILE_STORAGE governs where
 # the bytes live: local filesystem in dev, Cloudinary in prod. Swap by

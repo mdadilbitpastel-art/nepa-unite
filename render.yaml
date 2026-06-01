@@ -1,0 +1,69 @@
+# Render Blueprint — provisions a Postgres DB + the Django web service.
+# Link this repo in the Render dashboard ("New +" → "Blueprint") and Render
+# reads this file. Secrets marked `sync: false` must be filled in the dashboard.
+
+databases:
+  - name: nepa-unite-db
+    databaseName: nepa_unite
+    user: nepa
+    plan: free
+
+services:
+  - type: web
+    name: nepa-unite
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn nepa_unite.wsgi:application"
+    healthCheckPath: /api/health/
+    envVars:
+      # --- Core Django ---
+      - key: DJANGO_SETTINGS_MODULE
+        value: nepa_unite.settings.production
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true          # Render generates a strong secret
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: WEB_CONCURRENCY
+        value: "4"                    # gunicorn worker count
+
+      # --- Database (auto-wired from the managed Postgres above) ---
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nepa-unite-db
+          property: connectionString
+
+      # --- CORS (set to your frontend origin if you have one) ---
+      - key: DJANGO_CORS_ALLOWED_ORIGINS
+        value: ""
+
+      # --- Redis (OPTIONAL) ---
+      # Leave unset for a single-service deploy (locmem cache + eager tasks).
+      # To enable, create a Render Key Value instance and set REDIS_URL here.
+      # - key: REDIS_URL
+      #   fromService:
+      #     type: keyvalue
+      #     name: nepa-unite-redis
+      #     property: connectionString
+
+      # --- Email (Gmail SMTP — fill these in the dashboard) ---
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+
+      # --- Stripe (optional — fill in the dashboard if used) ---
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_GATE_ENABLED
+        value: "False"
