@@ -293,14 +293,21 @@ STORAGES = {
     },
 }
 
-# User uploads (product images, etc.). DEFAULT_FILE_STORAGE governs where
-# the bytes live: local filesystem in dev, Cloudinary in prod. Swap by
-# installing django-cloudinary-storage and setting:
-#     DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
-#     CLOUDINARY_URL=cloudinary://api_key:api_secret@cloud_name
-# Code that reads `instance.primary_image.url` keeps working unchanged.
+# User uploads (product images, etc.). Local filesystem by default; switch to
+# Cloudinary automatically when CLOUDINARY_URL is set (e.g. on Render, where
+# the local disk is ephemeral). Code that reads `instance.primary_image.url`
+# keeps working unchanged either way.
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+CLOUDINARY_URL = env("CLOUDINARY_URL", default="")
+if CLOUDINARY_URL:
+    # The `cloudinary` library auto-configures itself from the CLOUDINARY_URL
+    # environment variable, so no extra credentials settings are needed.
+    INSTALLED_APPS += ["cloudinary_storage", "cloudinary"]
+    STORAGES["default"]["BACKEND"] = (
+        "cloudinary_storage.storage.MediaCloudinaryStorage"
+    )
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

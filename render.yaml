@@ -63,6 +63,12 @@ services:
       #     name: nepa-unite-redis
       #     property: connectionString
 
+      # --- Cloudinary (persistent media storage; free disk is ephemeral) ---
+      # Set to your cloudinary://api_key:api_secret@cloud_name in the dashboard.
+      # When set, product images upload to Cloudinary instead of local disk.
+      - key: CLOUDINARY_URL
+        sync: false
+
       # --- Email (Gmail SMTP — fill these in the dashboard) ---
       - key: EMAIL_HOST_USER
         sync: false

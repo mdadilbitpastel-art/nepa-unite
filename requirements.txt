@@ -23,9 +23,9 @@ reportlab==4.2.5
 django-ratelimit==4.1.0
 bleach==6.1.0
 Pillow==10.4.0
-# Cloudinary storage swap (uncomment + set CLOUDINARY_URL in prod):
-# cloudinary==1.41.0
-# django-cloudinary-storage==0.3.0
+# Cloudinary media storage — active when CLOUDINARY_URL is set (prod/Render).
+cloudinary==1.41.0
+django-cloudinary-storage==0.3.0
 
 # Dev / test
 pytest==8.3.3
