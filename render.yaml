@@ -39,6 +39,14 @@ services:
       - key: DB_SCHEMA
         value: nepa_unite
 
+      # --- Admin bootstrap (no Shell on free tier) ---
+      # Set these in the dashboard; build.sh runs `ensure_admin` to create the
+      # login the first time. Safe to leave set — it skips if the user exists.
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+
       # --- CORS (set to your frontend origin if you have one) ---
       - key: DJANGO_CORS_ALLOWED_ORIGINS
         value: ""

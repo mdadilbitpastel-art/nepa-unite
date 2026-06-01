@@ -16,3 +16,7 @@ fi
 
 # Apply DB migrations against the Postgres instance.
 python manage.py migrate --no-input
+
+# Free tier has no Shell, so create the admin from env vars (idempotent —
+# skips if it already exists, or if the env vars are not set).
+python manage.py ensure_admin
