@@ -14,7 +14,10 @@ services:
     region: oregon
     branch: main
     buildCommand: "./build.sh"
-    startCommand: "gunicorn nepa_unite.wsgi:application"
+    # Free tier = 512 MB RAM. One preloaded worker (shared memory) + threads
+    # for concurrency; a longer timeout covers the heavy cold import (stripe,
+    # elasticsearch, boto3). More workers OOM-kill on the free instance.
+    startCommand: "gunicorn nepa_unite.wsgi:application --workers 1 --threads 4 --worker-class gthread --timeout 120 --preload"
     healthCheckPath: /api/health/
     envVars:
       # --- Core Django ---
@@ -27,7 +30,7 @@ services:
       - key: DJANGO_DEBUG
         value: "False"
       - key: WEB_CONCURRENCY
-        value: "4"                    # gunicorn worker count
+        value: "1"                    # free tier: a single preloaded worker
 
       # --- Database ---
       # Reuses an EXISTING Render Postgres (shared with another service).
