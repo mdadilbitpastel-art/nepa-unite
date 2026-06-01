@@ -104,6 +104,12 @@ if DB_SCHEMA:
     DATABASES["default"].setdefault("OPTIONS", {})
     DATABASES["default"]["OPTIONS"]["options"] = f"-c search_path={DB_SCHEMA}"
 
+# Row-Level Security is FORCEd on tenant tables but no per-request tenant
+# context is wired up, so the app's DB role bypasses RLS on every connection
+# (see core.apps._bypass_rls). Set DB_BYPASS_RLS=False to enforce policies
+# once an `app.current_tenant` mechanism exists.
+DB_BYPASS_RLS = env.bool("DB_BYPASS_RLS", default=True)
+
 _replica_url = env("DATABASE_REPLICA_URL")
 if _replica_url:
     DATABASES["replica"] = env.db_url_config(_replica_url)
