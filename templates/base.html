@@ -187,9 +187,9 @@
     .btn:active { transform: translateY(1px); }
     .btn > svg { flex-shrink: 0; display: block; transform: translateY(1px); }
     .btn:hover { text-decoration: none; }
-    .btn-primary    { background: var(--primary); color: var(--text-on-primary); }
-    .btn-primary:hover { background: var(--primary-hover); color: var(--text-on-primary);
-                         box-shadow: 0 4px 12px rgba(12, 35, 64, .22); }
+    .btn-primary    { background: var(--accent); color: #1a1208; }
+    .btn-primary:hover { background: var(--accent-hover); color: #1a1208;
+                         box-shadow: 0 4px 12px rgba(184, 132, 58, .28); }
     .btn-accent     { background: var(--accent); color: #1a1208; }
     .btn-accent:hover { background: var(--accent-hover); color: #1a1208;
                         box-shadow: 0 4px 12px rgba(184, 132, 58, .28); }
@@ -202,7 +202,7 @@
     .btn-danger:hover { background: #991b1b; color: white;
                         box-shadow: 0 4px 12px rgba(185, 28, 28, .25); }
     .btn-block      { width: 100%; }
-    .btn-sm         { padding: 8px 12px; font-size: 13px; gap: 6px; }
+    .btn-sm         { padding: 4px 10px; font-size: 12px; gap: 6px; }
 
     /* ============================================================
        Forms
@@ -433,15 +433,15 @@
       transition: background-color .12s, color .12s, border-color .12s;
     }
     .page-btn:hover {
-      background: var(--primary-soft); color: var(--primary);
-      border-color: var(--primary); text-decoration: none;
+      background: var(--accent-soft); color: var(--accent-hover);
+      border-color: var(--accent); text-decoration: none;
     }
     .page-btn.current {
-      background: var(--primary); color: var(--text-on-primary);
-      border-color: var(--primary); cursor: default;
+      background: var(--accent); color: #1a1208;
+      border-color: var(--accent); cursor: default;
     }
     .page-btn.current:hover {
-      background: var(--primary); color: var(--text-on-primary);
+      background: var(--accent); color: #1a1208;
     }
     .page-btn.disabled {
       opacity: .4; cursor: not-allowed;
@@ -510,7 +510,7 @@
     [data-theme="dark"] .field select {
       background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 20 20' fill='%2394a3b8'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E");
     }
-    [data-theme="dark"] .btn-primary:hover { box-shadow: 0 4px 12px rgba(96, 165, 250, .3); }
+    [data-theme="dark"] .btn-primary:hover { box-shadow: 0 4px 12px rgba(224, 173, 90, .3); }
     [data-theme="dark"] .btn-accent:hover  { box-shadow: 0 4px 12px rgba(224, 173, 90, .3); }
     [data-theme="dark"] .btn-danger:hover  { box-shadow: 0 4px 12px rgba(248, 113, 113, .3); }
     [data-theme="dark"] .health-banner.ok       { color: #6ee7b7; border-color: rgba(52, 211, 153, .3); }

@@ -20,12 +20,12 @@
     text-transform: capitalize;
   }
   .filter-bar .chip:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
-  .filter-bar .chip.active { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); }
+  .filter-bar .chip.active { background: var(--accent); border-color: var(--accent); color: #1a1208; }
   .filter-bar .chip .count {
     background: rgba(15, 23, 42, .08); padding: 1px 7px;
     border-radius: 999px; font-size: 11px; font-weight: 700;
   }
-  .filter-bar .chip.active .count { background: rgba(255,255,255,.18); }
+  .filter-bar .chip.active .count { background: rgba(26,18,8,.14); }
   .filter-bar form.inline-filters {
     display: inline-flex; align-items: center; gap: 8px;
     margin-left: auto; flex-wrap: wrap;
@@ -174,7 +174,7 @@
             </td>
             <td style="text-align:right;">
               <a href="{% url 'order_detail' o.id %}" class="btn btn-primary btn-sm">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 View
               </a>
             </td>
