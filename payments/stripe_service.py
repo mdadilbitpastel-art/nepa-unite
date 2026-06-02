@@ -33,6 +33,37 @@ def _to_cents(amount: Decimal) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Health probe
+# ---------------------------------------------------------------------------
+def stripe_mode() -> str:
+    """'test', 'live', or 'unset' inferred from the secret key prefix."""
+    key = settings.STRIPE_SECRET_KEY or ""
+    if key.startswith("sk_test_") or key.startswith("rk_test_"):
+        return "test"
+    if key.startswith("sk_live_") or key.startswith("rk_live_"):
+        return "live"
+    return "unset"
+
+
+def stripe_health() -> tuple[bool, str | None]:
+    """Lightweight Stripe connectivity probe for the admin health dashboard.
+
+    Deliberately NOT wired into the load-balancer /api/health/ probe: Stripe is
+    a third-party dependency, and a slow or down Stripe must never take this
+    service out of rotation. We make a cheap authenticated call (Balance) to
+    confirm the secret key is valid and the API is reachable.
+    """
+    if not settings.STRIPE_SECRET_KEY:
+        return False, "STRIPE_SECRET_KEY not configured"
+    _configure()
+    try:
+        stripe.Balance.retrieve()
+        return True, None
+    except Exception as exc:  # noqa: BLE001 - report any failure verbatim
+        return False, str(exc)
+
+
+# ---------------------------------------------------------------------------
 # Seller onboarding
 # ---------------------------------------------------------------------------
 def create_seller_account(user_id: str) -> str:
@@ -100,6 +131,79 @@ def create_payment_intent(order_id: str) -> dict[str, Any]:
         status=Payment.Status.PENDING,
     )
     return {"client_secret": intent.client_secret, "payment_intent_id": intent.id}
+
+
+# Stripe statuses for which an existing PaymentIntent can still be reused by the
+# buyer (i.e. not yet paid and not in a terminal/canceled state).
+_REUSABLE_INTENT_STATUSES = {
+    "requires_payment_method",
+    "requires_confirmation",
+    "requires_action",
+    "processing",
+}
+
+
+def get_or_create_payment_intent(order_id: str) -> dict[str, Any]:
+    """Return a client_secret for the order, reusing an open PaymentIntent.
+
+    Used by the buyer checkout page so that re-loading the page does not spawn a
+    fresh PaymentIntent (and a fresh pending Payment row) every time. Falls back
+    to `create_payment_intent` when there is no reusable intent yet.
+    """
+    _configure()
+    order = Order.objects.get(pk=order_id)
+    pending = (
+        order.payments.filter(status=Payment.Status.PENDING)
+        .exclude(stripe_payment_intent_id="")
+        .order_by("-created_at")
+        .first()
+    )
+    if pending is not None:
+        try:
+            intent = stripe.PaymentIntent.retrieve(pending.stripe_payment_intent_id)
+        except stripe.error.StripeError:
+            intent = None
+        if intent is not None and intent.status in _REUSABLE_INTENT_STATUSES:
+            return {
+                "client_secret": intent.client_secret,
+                "payment_intent_id": intent.id,
+            }
+    return create_payment_intent(order_id)
+
+
+@transaction.atomic
+def sync_payment_status(order_id: str) -> str | None:
+    """Reconcile a Payment/Order with Stripe by retrieving the PaymentIntent.
+
+    Returns the Stripe PaymentIntent status (or None when the order has no
+    intent yet). This makes the buyer checkout flow work in environments where
+    no Stripe webhook is configured (e.g. local test mode): on the post-payment
+    redirect we pull the authoritative status straight from Stripe rather than
+    waiting on `payment_intent.succeeded`. Webhook handling stays the source of
+    truth in production; both paths are idempotent.
+    """
+    _configure()
+    order = Order.objects.select_for_update().get(pk=order_id)
+    if not order.stripe_payment_intent_id:
+        return None
+
+    intent = stripe.PaymentIntent.retrieve(order.stripe_payment_intent_id)
+    payment = Payment.objects.filter(stripe_payment_intent_id=intent.id).first()
+    if payment is None:
+        return intent.status
+
+    if intent.status == "succeeded":
+        if payment.status != Payment.Status.COMPLETED:
+            payment.status = Payment.Status.COMPLETED
+            payment.save(update_fields=["status"])
+        if order.status == Order.Status.DRAFT:
+            order.status = Order.Status.CONFIRMED
+            order.save(update_fields=["status", "updated_at"])
+    elif intent.status == "canceled" and payment.status == Payment.Status.PENDING:
+        payment.status = Payment.Status.FAILED
+        payment.save(update_fields=["status"])
+
+    return intent.status
 
 
 # ---------------------------------------------------------------------------

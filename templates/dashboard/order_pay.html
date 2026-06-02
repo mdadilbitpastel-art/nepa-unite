@@ -1,0 +1,81 @@
+{% extends "base_app.html" %}
+{% load static %}
+{% block title %}Pay for order {{ order.id|stringformat:"s"|slice:":8" }}… · NEPA Unite{% endblock %}
+{% block header_title %}Checkout{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+  .pay-back { margin-bottom:var(--space-2); }
+  .pay-wrap { max-width:520px;margin:0 auto; }
+  .pay-card {
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);
+    padding:22px 24px;
+  }
+  .pay-summary {
+    display:flex;justify-content:space-between;align-items:center;
+    padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid var(--border);
+  }
+  .pay-summary .pay-label { font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);font-weight:700; }
+  .pay-summary .pay-amount { font-size:26px;font-weight:800;color:var(--text); }
+  #payment-element { margin-bottom:18px; }
+  .pay-error {
+    display:none;color:var(--danger);background:var(--danger-bg);
+    border:1px solid currentColor;border-radius:var(--radius-sm);
+    padding:8px 12px;font-size:13px;margin-bottom:14px;
+  }
+  .pay-error.show { display:block; }
+  #pay-submit { width:100%;justify-content:center; }
+  #pay-submit[disabled] { opacity:.6;cursor:not-allowed; }
+  .pay-spinner {
+    width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;
+    border-radius:50%;display:inline-block;animation:pay-spin .7s linear infinite;
+  }
+  @keyframes pay-spin { to { transform:rotate(360deg); } }
+  .pay-test-hint {
+    margin-top:14px;font-size:11px;color:var(--text-subtle);text-align:center;line-height:1.6;
+  }
+  .pay-test-hint code { background:var(--surface-2);padding:1px 5px;border-radius:4px;font-size:11px; }
+</style>
+{% endblock %}
+
+{% block app_content %}
+<div class="pay-wrap">
+  <div class="pay-back">
+    <a href="{% url 'order_detail' order.id %}" class="btn btn-ghost btn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      Back to order
+    </a>
+  </div>
+
+  <div class="pay-card">
+    <div class="pay-summary">
+      <span class="pay-label">Amount due</span>
+      <span class="pay-amount">${{ order.total_amount }}</span>
+    </div>
+
+    <form id="payment-form"
+          data-publishable-key="{{ stripe_publishable_key }}"
+          data-client-secret="{{ client_secret }}"
+          data-return-url="{{ return_url }}">
+      <div id="payment-element"><!-- Stripe Payment Element mounts here --></div>
+      <div id="pay-error" class="pay-error" role="alert"></div>
+      <button id="pay-submit" type="submit" class="btn btn-primary">
+        <span id="pay-submit-text">Pay ${{ order.total_amount }}</span>
+        <span id="pay-submit-spinner" class="pay-spinner" style="display:none;"></span>
+      </button>
+    </form>
+
+    <p class="pay-test-hint">
+      Test mode — use card <code>4242 4242 4242 4242</code>, any future expiry,
+      any CVC and ZIP. No real charge is made.
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://js.stripe.com/v3/"></script>
+<script src="{% static 'js/stripe_checkout.js' %}" defer></script>
+{% endblock %}

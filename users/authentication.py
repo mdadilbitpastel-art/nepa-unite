@@ -40,6 +40,18 @@ class Auth0JWTAuthentication(authentication.BaseAuthentication):
             raise exceptions.AuthenticationFailed(str(exc))
 
         user = resolve_user(claims)
+
+        # Single enforcement point for account state: only ACTIVE accounts may
+        # use the API. Suspended/pending users are rejected on EVERY request,
+        # for every role and every CRUD operation, so individual views don't
+        # have to re-check. (is_authenticated alone does NOT cover this.)
+        from users.models import CustomUser
+
+        if user.status != CustomUser.Status.ACTIVE:
+            raise exceptions.AuthenticationFailed(
+                f"Account is {user.status}; access requires an active account."
+            )
+
         return (user, claims)
 
     def authenticate_header(self, request):

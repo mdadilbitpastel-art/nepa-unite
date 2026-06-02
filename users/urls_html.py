@@ -10,6 +10,7 @@ urlpatterns = [
     path("signup/", views_html.signup_view, name="signup"),
     path("login/", views_html.login_view, name="login"),
     path("logout/", views_html.logout_view, name="logout"),
+    path("ping/", views_html.keepalive_view, name="keepalive"),
     path("forgot-password/", views_html.forgot_password_view, name="forgot_password"),
     path(
         "reset-password/<uidb64>/<token>/",
@@ -33,6 +34,8 @@ urlpatterns = [
     path("dashboard/orders/", views_html.orders_view, name="orders"),
     path("dashboard/orders/<uuid:order_id>/", views_html.order_detail_view, name="order_detail"),
     path("dashboard/orders/<uuid:order_id>/transition/", views_html.order_transition_view, name="order_transition"),
+    path("dashboard/orders/<uuid:order_id>/pay/", views_html.order_pay_view, name="order_pay"),
+    path("dashboard/orders/<uuid:order_id>/pay/return/", views_html.order_pay_return_view, name="order_pay_return"),
     path("dashboard/audit-log/", views_html.audit_log_view, name="audit_log"),
     path("dashboard/api/", views_html.api_reference_view, name="api_reference"),
     path("dashboard/health/", views_html.system_health_view, name="system_health"),

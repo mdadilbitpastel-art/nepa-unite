@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import logging
 
+from django.conf import settings
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -22,6 +23,29 @@ from users.models import CustomUser
 from users.permissions import IsAdmin, IsBuyer, IsSeller
 
 logger = logging.getLogger(__name__)
+
+
+class PaymentConfigView(APIView):
+    """GET /api/v1/payments/config — public Stripe config for the frontend.
+
+    The publishable key is safe to expose (it's a public key by design). The
+    frontend uses it to initialise Stripe.js before confirming a PaymentIntent.
+    """
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(
+            {
+                "publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
+                "currency": "usd",
+                "platform_fee_percent": settings.STRIPE_PLATFORM_FEE_PERCENT,
+                "configured": bool(
+                    settings.STRIPE_PUBLISHABLE_KEY and settings.STRIPE_SECRET_KEY
+                ),
+            }
+        )
 
 
 class PaymentIntentView(APIView):

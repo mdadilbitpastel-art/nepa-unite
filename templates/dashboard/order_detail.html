@@ -157,6 +157,14 @@
     <div class="od-total-label">Order Total</div>
     <div class="od-total-value">${{ order.total_amount }}</div>
     <div class="od-total-status"><span class="pill {{ order.status }}">{{ order.get_status_display }}</span></div>
+    {% if can_pay %}
+    <div style="margin-top:10px;">
+      <a href="{% url 'order_pay' order.id %}" class="btn btn-primary btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        Pay now
+      </a>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endif %}

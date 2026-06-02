@@ -4,11 +4,13 @@ from payments.views import (
     DisburseView,
     OrderInvoiceView,
     OrderPaymentsView,
+    PaymentConfigView,
     PaymentIntentView,
     SellerOnboardView,
 )
 
 urlpatterns = [
+    path("payments/config", PaymentConfigView.as_view(), name="payments-config"),
     path("payments/intent", PaymentIntentView.as_view(), name="payments-intent"),
     path("payments/disburse", DisburseView.as_view(), name="payments-disburse"),
     path("payments/<uuid:order_id>", OrderPaymentsView.as_view(), name="payments-order"),

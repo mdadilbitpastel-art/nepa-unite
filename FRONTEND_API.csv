@@ -1,0 +1,49 @@
+﻿Category,Method,Endpoint,Auth,Role,Request (body / params),Response,Notes
+Docs,GET,/api/docs/,Public,-,-,Swagger UI (HTML),Interactive API explorer
+Docs,GET,/api/schema/,Public,-,-,OpenAPI YAML,Generate typed TS client from this
+Health,GET,/api/health/,Public,-,-,"{""status"":""ok"",""db"":{...},""redis"":{...}}",LB liveness
+Auth,POST,/api/v1/auth/register,Public,-,"{""email"",""password(min8)"",""role(buyer|seller)"",""business_name"",""vertical_type""}","{""id"",""email"",""role"",""status""}",Admin cannot self-register; sellers start pending
+Auth,POST,/api/v1/auth/login,Public,-,"{""email"",""password""}","{""access_token"",""refresh_token"",""expires_in""}",Use access_token as Bearer
+Auth,POST,/api/v1/auth/refresh,Public,-,"{""refresh_token""}","{""access_token"",""expires_in""}",
+Auth,POST,/api/v1/auth/logout,Bearer,any,"{""refresh_token""}",204/200,
+Auth,POST,/api/v1/auth/forgot-password,Public,-,"{""email""}",200,Always 200 (no email enumeration)
+Auth,POST,/api/v1/auth/reset-password,Public,-,"{""uid"",""token"",""new_password(min8)""}",200,
+Members,GET,/api/v1/members/,Bearer,any,-,[member objects],Trailing slash
+Members,GET,/api/v1/members/{id}/,Bearer,any,-,"{""id"",""email"",""role"",""status"",""tenant"":{...},""created_at"",""updated_at""}",
+Members,PATCH,/api/v1/members/{id}/,Bearer,self/admin,"{""email""}",member object,Only email editable
+Members,GET,/api/v1/admin/members/,Bearer,admin,-,[member objects],
+Members,POST,/api/v1/admin/members/{id}/approve/,Bearer,admin,{},member object,Approve pending member
+Members,POST,/api/v1/admin/members/{id}/suspend/,Bearer,admin,{},member object,Suspend member
+Addresses,GET,/api/v1/addresses/,Bearer,buyer,-,[address objects],
+Addresses,POST,/api/v1/addresses/,Bearer,buyer,"{""label"",""recipient_name"",""phone"",""line1"",""line2"",""city"",""state"",""zip_code"",""country"",""is_default""}",address object,
+Addresses,GET/PATCH/DELETE,/api/v1/addresses/{id}/,Bearer,buyer,(partial of above),address object,
+Addresses,POST,/api/v1/addresses/{id}/set-default/,Bearer,buyer,{},address object,
+Products,GET,/api/v1/products/,Bearer,any,-,[product objects],
+Products,POST,/api/v1/products/,Bearer,seller,"{""sku"",""name"",""description"",""price"",""attributes"",""inventory_count"",""min_order_qty""}",product object,
+Products,GET,/api/v1/products/{id}/,Bearer,any,-,product object + images[],
+Products,PATCH/DELETE,/api/v1/products/{id}/,Bearer,seller(owner),(partial),product object,
+Products,GET,/api/v1/products/search/,Public,-,?q=&category=&region=&price_min=&price_max=&contract_status=&in_stock=&page=1&page_size=20,"{""count"",""page"",""page_size"",""results"":[...]}",ONLY paginated list endpoint
+Products,GET,/api/v1/products/categories/,Public,-,-,[categories],
+Products,GET,/api/v1/products/by-seller/{seller_id}/,Bearer,any,-,[product objects],
+Products,POST,/api/v1/products/bulk-upload/,Bearer,seller,multipart: file=.csv (<=10MB),job object,Track via /jobs/
+Products,GET/POST,/api/v1/products/{id}/reviews/,Bearer,any/buyer,"{""rating(1-5)"",""title"",""body""}",[review objects] / review object,
+Reviews,CRUD,/api/v1/reviews/,Bearer,buyer,"{""product"",""rating(1-5)"",""title"",""body""}",review object,
+Wishlist,CRUD,/api/v1/wishlist/,Bearer,buyer,"{""product""}",wishlist item object,
+Jobs,GET,/api/v1/jobs/{id}/,Bearer,seller,-,job status object,Bulk-upload progress
+Cart,GET,/api/v1/cart/,Bearer,buyer,-,"{""id"",""items"":[...],""total"",""item_count"",""updated_at""}",
+Cart,POST,/api/v1/cart/items/,Bearer,buyer,"{""product_id"",""quantity""}",cart object,
+Cart,PATCH,/api/v1/cart/items/{item_id}/,Bearer,buyer,"{""quantity""}",cart object,
+Cart,DELETE,/api/v1/cart/items/{item_id}/,Bearer,buyer,-,cart object,Remove item
+Cart,POST,/api/v1/cart/clear/,Bearer,buyer,{},cart object,Empty cart
+Cart,POST,/api/v1/cart/checkout/,Bearer,buyer,"{""address_id""} OR {""shipping_name"",""shipping_phone"",""shipping_address_line1"",""shipping_city"",""shipping_state"",""shipping_zip"",""buyer_notes""}",Order object (status=draft),Converts cart -> order
+Orders,GET,/api/v1/orders/,Bearer,scoped,-,[order objects],buyer:own seller:their-items admin:all
+Orders,GET,/api/v1/orders/{id}/,Bearer,scoped,-,order object + items[],
+Orders,POST,/api/v1/orders/,Bearer,buyer,"{""items"":[{""product_id"",""quantity""}],""shipping_name"",""shipping_phone"",""shipping_address_line1"",""shipping_city"",""shipping_state"",""shipping_zip"",""buyer_notes""}",order object,Create order without cart
+Orders,PATCH,/api/v1/orders/{id}/status/,Bearer,scoped,"{""status""}",order object,draft->confirmed->fulfillment->shipped->delivered->closed; *->cancelled
+Payments,GET,/api/v1/payments/config,Public,-,-,"{""publishable_key"",""currency"",""platform_fee_percent"",""configured""}",FE Stripe.js init (no trailing slash)
+Payments,POST,/api/v1/payments/intent,Bearer,buyer(owner),"{""order_id""}","{""client_secret"",""payment_intent_id""}",Create Stripe PaymentIntent
+Payments,GET,/api/v1/payments/{order_id},Bearer,scoped,-,"[{""id"",""order"",""stripe_payment_intent_id"",""amount"",""platform_fee"",""status"",""disbursed_at"",""created_at""}]",Poll for payment status
+Payments,POST,/api/v1/payments/disburse,Bearer,admin,"{""order_item_id""}",202,Payout seller share
+Payments,POST,/api/v1/sellers/onboard,Bearer,seller,{},"{""onboarding_url""}",Stripe Connect onboarding
+Invoices,GET,/api/v1/orders/{order_id}/invoice,Bearer,scoped,-,"{""id"",""order"",""invoice_number"",""s3_key"",""pre_signed_url"",""pre_signed_url_expires_at"",""created_at""}",Fresh presigned PDF URL
+Webhooks,POST,/api/v1/webhooks/stripe,Stripe sig,-,Stripe event payload,"{""received"":true}",Server-to-server only; NOT called by frontend

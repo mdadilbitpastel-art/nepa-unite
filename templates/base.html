@@ -529,8 +529,11 @@
   </style>
   {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body{% if user.is_authenticated %} data-inactivity-timeout="{{ inactivity_timeout }}" data-logout-url="{% url 'logout' %}" data-keepalive-url="{% url 'keepalive' %}"{% endif %}>
   {% block layout %}{% endblock %}
   <script src="{% static 'js/scroll_restore.js' %}"></script>
+  {% if user.is_authenticated %}
+  <script src="{% static 'js/idle_logout.js' %}" defer></script>
+  {% endif %}
 </body>
 </html>

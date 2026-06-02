@@ -54,6 +54,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "core.middleware.InactivityLogoutMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.middleware.SecurityHeadersMiddleware",
 ]
@@ -71,6 +72,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.session_settings",
             ],
         },
     },
@@ -80,6 +82,11 @@ TEMPLATES = [
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/login/"
+
+# Auto sign-out session (dashboard) users after this many seconds of inactivity.
+# Sliding window — each request resets it. Enforced by
+# core.middleware.InactivityLogoutMiddleware. Default: 5 minutes.
+SESSION_INACTIVITY_TIMEOUT = env.int("SESSION_INACTIVITY_TIMEOUT", default=300)
 
 WSGI_APPLICATION = "nepa_unite.wsgi.application"
 ASGI_APPLICATION = "nepa_unite.asgi.application"

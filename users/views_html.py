@@ -175,6 +175,20 @@ def logout_view(request):
 
 
 # ---------------------------------------------------------------------------
+# Session keepalive — pinged by the client idle timer so genuine on-page
+# activity (typing, scrolling) refreshes the server-side inactivity window.
+# ---------------------------------------------------------------------------
+@login_required
+@require_http_methods(["GET"])
+def keepalive_view(request):
+    from django.http import JsonResponse
+
+    # The InactivityLogoutMiddleware already stamped last_activity for this
+    # request; we just need to acknowledge it.
+    return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
 # Forgot password — generates a token, emails the reset link via Celery
 # ---------------------------------------------------------------------------
 @require_http_methods(["GET", "POST"])
@@ -680,6 +694,11 @@ def system_health_view(request):
 
     db_ok, db_error = HealthCheckView._check_db()
     redis_ok, redis_error = HealthCheckView._check_redis()
+    # Stripe is a third-party dependency: surface it on the dashboard but keep it
+    # out of `overall` so a Stripe outage never marks the whole system down.
+    from payments import stripe_service
+    stripe_ok, stripe_error = stripe_service.stripe_health()
+    stripe_mode = stripe_service.stripe_mode()
     overall = db_ok and redis_ok
 
     checks = [
@@ -696,6 +715,13 @@ def system_health_view(request):
             "ok": redis_ok,
             "error": redis_error,
             "probe": "SET/GET round-trip on a sentinel key",
+        },
+        {
+            "name": "Stripe",
+            "kind": f"Payments ({stripe_mode} mode)",
+            "ok": stripe_ok,
+            "error": stripe_error,
+            "probe": "Balance.retrieve() with the secret key",
         },
     ]
 
@@ -1357,6 +1383,14 @@ def order_detail_view(request, order_id):
     can_cancel = Order.Status.CANCELLED in TRANSITIONS.get(order.status, set())
     activity_logs = order.activity_logs.select_related("actor")
 
+    # Buyers can pay for their own unpaid (still DRAFT) order with a balance due.
+    can_pay = (
+        user.role == CustomUser.Role.BUYER
+        and order.buyer_id == user.id
+        and order.status == Order.Status.DRAFT
+        and order.total_amount > 0
+    )
+
     ctx = {
         "user": user,
         "role": user.role,
@@ -1365,6 +1399,7 @@ def order_detail_view(request, order_id):
         "timeline": timeline,
         "allowed_next": sorted(allowed),
         "can_cancel": can_cancel,
+        "can_pay": can_pay,
         "status_labels": dict(Order.Status.choices),
         "activity_logs": activity_logs,
     }
@@ -1403,5 +1438,105 @@ def order_transition_view(request, order_id):
         messages.error(request, f"Cannot transition from {order.status} to {target}.")
     except Exception as exc:
         messages.error(request, f"Transition failed: {exc}")
+
+    return redirect("order_detail", order_id=order_id)
+
+
+# ---------------------------------------------------------------------------
+# Buyer: Stripe checkout (Payment Element) for an unpaid order
+# ---------------------------------------------------------------------------
+def _buyer_payable_order_or_redirect(request, order_id):
+    """Load an order the current buyer is allowed to pay, else a redirect.
+
+    Returns (order, None) when payable, or (None, redirect_response) otherwise.
+    """
+    user = request.user
+    if user.status != CustomUser.Status.ACTIVE:
+        return None, redirect("pending_approval")
+
+    order = get_object_or_404(Order, pk=order_id)
+    if user.role != CustomUser.Role.BUYER or order.buyer_id != user.id:
+        messages.error(request, "Only the buyer can pay for this order.")
+        return None, redirect("order_detail", order_id=order_id)
+    return order, None
+
+
+@login_required
+def order_pay_view(request, order_id):
+    order, redirect_response = _buyer_payable_order_or_redirect(request, order_id)
+    if redirect_response is not None:
+        return redirect_response
+
+    if order.status == Order.Status.CANCELLED:
+        messages.error(request, "This order was cancelled and can't be paid.")
+        return redirect("order_detail", order_id=order_id)
+    if order.status != Order.Status.DRAFT:
+        messages.info(request, "This order has already been paid.")
+        return redirect("order_detail", order_id=order_id)
+
+    if not settings.STRIPE_PUBLISHABLE_KEY or not settings.STRIPE_SECRET_KEY:
+        messages.error(request, "Payments aren't configured in this environment yet.")
+        return redirect("order_detail", order_id=order_id)
+
+    from payments import stripe_service
+
+    try:
+        result = stripe_service.get_or_create_payment_intent(str(order.pk))
+    except Exception as exc:  # noqa: BLE001 — Stripe SDK raises many subclasses
+        logger.warning("Payment intent init failed for order %s: %s", order.pk, exc)
+        messages.error(
+            request,
+            "Couldn't start the payment right now. Please try again, or contact "
+            "support if this keeps happening.",
+        )
+        return redirect("order_detail", order_id=order_id)
+
+    return_url = request.build_absolute_uri(
+        reverse("order_pay_return", args=[order.pk])
+    )
+    ctx = {
+        "user": request.user,
+        "role": request.user.role,
+        "order": order,
+        "client_secret": result["client_secret"],
+        "stripe_publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
+        "return_url": return_url,
+    }
+    return render(request, "dashboard/order_pay.html", ctx)
+
+
+@login_required
+def order_pay_return_view(request, order_id):
+    """Stripe redirects here after the buyer confirms payment.
+
+    We reconcile straight from Stripe so the flow works without a configured
+    webhook (test mode), then bounce back to the order with a status message.
+    """
+    order, redirect_response = _buyer_payable_order_or_redirect(request, order_id)
+    if redirect_response is not None:
+        return redirect_response
+
+    from payments import stripe_service
+
+    try:
+        intent_status = stripe_service.sync_payment_status(str(order.pk))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Payment sync failed for order %s: %s", order.pk, exc)
+        intent_status = None
+
+    if intent_status == "succeeded":
+        messages.success(request, "Payment received — thank you! Your order is confirmed.")
+    elif intent_status == "processing":
+        messages.info(
+            request,
+            "Your payment is processing. We'll confirm the order once it clears.",
+        )
+    elif intent_status in (None, "requires_payment_method"):
+        messages.error(
+            request,
+            "The payment wasn't completed. You can try again from your order.",
+        )
+    else:
+        messages.info(request, f"Payment status: {intent_status}.")
 
     return redirect("order_detail", order_id=order_id)

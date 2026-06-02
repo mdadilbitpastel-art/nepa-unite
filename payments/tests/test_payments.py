@@ -156,6 +156,159 @@ def test_buyer_cannot_request_onboarding(db, force_login, buyer_user):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/v1/payments/config  (public — frontend Stripe.js init)
+# ---------------------------------------------------------------------------
+def test_payment_config_is_public_and_returns_publishable_key(db, api_client, settings):
+    settings.STRIPE_PUBLISHABLE_KEY = "pk_test_xyz"
+    settings.STRIPE_SECRET_KEY = "sk_test_xyz"
+    response = api_client.get("/api/v1/payments/config")
+    assert response.status_code == 200, response.content
+    body = response.json()
+    assert body["publishable_key"] == "pk_test_xyz"
+    assert body["currency"] == "usd"
+    assert body["configured"] is True
+
+
+def test_payment_config_reports_unconfigured(db, api_client, settings):
+    settings.STRIPE_PUBLISHABLE_KEY = ""
+    settings.STRIPE_SECRET_KEY = ""
+    response = api_client.get("/api/v1/payments/config")
+    assert response.status_code == 200
+    assert response.json()["configured"] is False
+
+
+# ---------------------------------------------------------------------------
+# get_or_create_payment_intent — idempotent reuse for the checkout page
+# ---------------------------------------------------------------------------
+def test_get_or_create_reuses_open_intent(db, order):
+    Payment.objects.create(
+        order=order, stripe_payment_intent_id="pi_open",
+        amount=Decimal("100"), platform_fee=Decimal("5"),
+        status=Payment.Status.PENDING,
+    )
+    from payments import stripe_service
+
+    reusable = SimpleNamespace(
+        id="pi_open", client_secret="cs_open", status="requires_payment_method"
+    )
+    with patch("payments.stripe_service.stripe.PaymentIntent.retrieve",
+               return_value=reusable) as retrieve, \
+         patch("payments.stripe_service.stripe.PaymentIntent.create") as create:
+        result = stripe_service.get_or_create_payment_intent(str(order.pk))
+
+    assert result["client_secret"] == "cs_open"
+    retrieve.assert_called_once_with("pi_open")
+    create.assert_not_called()
+    # No duplicate Payment row spawned.
+    assert order.payments.count() == 1
+
+
+def test_get_or_create_makes_new_intent_when_none_pending(db, order):
+    from payments import stripe_service
+
+    fresh = SimpleNamespace(id="pi_new", client_secret="cs_new")
+    with patch("payments.stripe_service.stripe.PaymentIntent.create",
+               return_value=fresh) as create:
+        result = stripe_service.get_or_create_payment_intent(str(order.pk))
+
+    assert result["payment_intent_id"] == "pi_new"
+    create.assert_called_once()
+    assert order.payments.filter(stripe_payment_intent_id="pi_new").exists()
+
+
+def test_get_or_create_replaces_already_paid_intent(db, order):
+    Payment.objects.create(
+        order=order, stripe_payment_intent_id="pi_done",
+        amount=Decimal("100"), platform_fee=Decimal("5"),
+        status=Payment.Status.PENDING,
+    )
+    from payments import stripe_service
+
+    # The pending row points at an intent Stripe already settled — not reusable.
+    settled = SimpleNamespace(id="pi_done", client_secret="cs_done", status="succeeded")
+    fresh = SimpleNamespace(id="pi_fresh", client_secret="cs_fresh")
+    with patch("payments.stripe_service.stripe.PaymentIntent.retrieve",
+               return_value=settled), \
+         patch("payments.stripe_service.stripe.PaymentIntent.create",
+               return_value=fresh) as create:
+        result = stripe_service.get_or_create_payment_intent(str(order.pk))
+
+    assert result["payment_intent_id"] == "pi_fresh"
+    create.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# sync_payment_status — webhook-free reconciliation on checkout return
+# ---------------------------------------------------------------------------
+def test_sync_marks_completed_and_confirms_order(db, order):
+    order.stripe_payment_intent_id = "pi_sync"
+    order.save(update_fields=["stripe_payment_intent_id"])
+    payment = Payment.objects.create(
+        order=order, stripe_payment_intent_id="pi_sync",
+        amount=Decimal("100"), platform_fee=Decimal("5"),
+        status=Payment.Status.PENDING,
+    )
+    from payments import stripe_service
+
+    succeeded = SimpleNamespace(id="pi_sync", status="succeeded")
+    with patch("payments.stripe_service.stripe.PaymentIntent.retrieve",
+               return_value=succeeded):
+        status = stripe_service.sync_payment_status(str(order.pk))
+
+    assert status == "succeeded"
+    payment.refresh_from_db()
+    order.refresh_from_db()
+    assert payment.status == Payment.Status.COMPLETED
+    assert order.status == Order.Status.CONFIRMED
+
+
+def test_sync_without_intent_returns_none(db, order):
+    from payments import stripe_service
+    assert stripe_service.sync_payment_status(str(order.pk)) is None
+
+
+# ---------------------------------------------------------------------------
+# Health probe (admin dashboard)
+# ---------------------------------------------------------------------------
+def test_stripe_mode_from_key(settings):
+    from payments import stripe_service
+    settings.STRIPE_SECRET_KEY = "sk_test_abc"
+    assert stripe_service.stripe_mode() == "test"
+    settings.STRIPE_SECRET_KEY = "sk_live_abc"
+    assert stripe_service.stripe_mode() == "live"
+    settings.STRIPE_SECRET_KEY = ""
+    assert stripe_service.stripe_mode() == "unset"
+
+
+def test_stripe_health_unconfigured(settings):
+    from payments import stripe_service
+    settings.STRIPE_SECRET_KEY = ""
+    ok, error = stripe_service.stripe_health()
+    assert ok is False
+    assert "not configured" in error
+
+
+def test_stripe_health_ok(settings):
+    from payments import stripe_service
+    settings.STRIPE_SECRET_KEY = "sk_test_abc"
+    with patch("payments.stripe_service.stripe.Balance.retrieve") as retrieve:
+        ok, error = stripe_service.stripe_health()
+    assert ok is True
+    assert error is None
+    retrieve.assert_called_once()
+
+
+def test_stripe_health_reports_api_error(settings):
+    from payments import stripe_service
+    settings.STRIPE_SECRET_KEY = "sk_test_bad"
+    with patch("payments.stripe_service.stripe.Balance.retrieve",
+               side_effect=Exception("Invalid API Key")):
+        ok, error = stripe_service.stripe_health()
+    assert ok is False
+    assert "Invalid API Key" in error
+
+
+# ---------------------------------------------------------------------------
 # process_refund (service-level test)
 # ---------------------------------------------------------------------------
 def test_process_refund_marks_refunded_and_releases(db, order, monkeypatch):
