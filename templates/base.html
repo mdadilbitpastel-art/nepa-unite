@@ -32,6 +32,8 @@
       --primary:            #0c2340;
       --primary-hover:      #1c3559;
       --primary-soft:       #eef2f8;
+      /* Deep solid for chips/badges that carry white text (both themes). */
+      --primary-solid:      #0c2340;
 
       --accent:             #d4a155;
       --accent-hover:       #b8843a;
@@ -95,21 +97,22 @@
       --text:            #f1f5f9;
       --text-muted:      #94a3b8;
       --text-subtle:     #64748b;
-      --primary:         #6366f1;
-      --primary-hover:   #818cf8;
-      --primary-soft:    rgba(99, 102, 241, .14);
+      --primary:         #93a4ff;
+      --primary-hover:   #b3c0ff;
+      --primary-soft:    rgba(147, 164, 255, .26);
+      --primary-solid:   #4f46e5;
       --text-on-primary: #ffffff;
       --accent:          #e0ad5a;
       --accent-hover:    #f0c478;
-      --accent-soft:     rgba(224, 173, 90, .14);
+      --accent-soft:     rgba(224, 173, 90, .26);
       --success:         #34d399;
-      --success-bg:      rgba(52, 211, 153, .14);
+      --success-bg:      rgba(52, 211, 153, .26);
       --warning:         #fbbf24;
-      --warning-bg:      rgba(251, 191, 36, .14);
+      --warning-bg:      rgba(251, 191, 36, .26);
       --danger:          #f87171;
-      --danger-bg:       rgba(248, 113, 113, .14);
+      --danger-bg:       rgba(248, 113, 113, .26);
       --info:            #60a5fa;
-      --info-bg:         rgba(96, 165, 250, .14);
+      --info-bg:         rgba(96, 165, 250, .26);
       --shadow-sm:       0 1px 3px rgba(0, 0, 0, .4);
       --shadow-md:       0 4px 14px rgba(0, 0, 0, .45);
       --shadow-lg:       0 16px 40px rgba(0, 0, 0, .55);
@@ -144,6 +147,9 @@
     a:hover { color: var(--primary-hover); text-decoration: underline; }
     code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
            background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
+    /* Order ID badge — white text on navy/primary chip (readable in both themes) */
+    code.ord-id { background: var(--primary-solid); color: #fff; }
+    a:hover code.ord-id { color: #fff; }
     button { font-family: inherit; }
     h1, h2, h3, h4 { margin: 0; color: var(--text); }
 
@@ -232,24 +238,28 @@
       border: 1px solid var(--border-strong);
       border-radius: var(--radius-md);
       font-size: 14px;
-      background: var(--surface-tint);
+      background-color: var(--surface-tint);
       color: var(--text);
       font-family: inherit;
       transition: background-color .15s, border-color .15s, box-shadow .15s;
     }
     .field input:focus, .field select:focus, .field textarea:focus {
       outline: none;
-      background: var(--surface);
+      background-color: var(--surface);
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(12, 35, 64, .12);
     }
     .field select {
+      -webkit-appearance: none;
+      -moz-appearance: none;
       appearance: none;
       background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 20 20' fill='%23475569'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 12px center;
+      background-size: 12px 12px;
       padding-right: 36px;
     }
+    .field select::-ms-expand { display: none; }
     .errors { list-style: none; padding: 0; margin: 6px 0 0 0; color: var(--danger); font-size: 12.5px; }
     .errors li::before { content: "⚠ "; }
 
@@ -392,12 +402,18 @@
     .pill.draft       { background: var(--surface-2);  color: var(--text-muted); }
     .pill.confirmed   { background: var(--info-bg);    color: var(--info); }
     .pill.fulfillment { background: var(--accent-soft); color: var(--accent-hover); }
-    .pill.shipped     { background: var(--info-bg);    color: var(--info); }
+    .pill.shipped     { background: #ede9fe;           color: #6d28d9; }
     .pill.delivered   { background: var(--success-bg); color: var(--success); }
-    .pill.closed      { background: var(--surface-2);  color: var(--text-muted); }
+    .pill.closed      { background: #ccfbf1;           color: #0f766e; }
     .pill.cancelled   { background: var(--danger-bg);  color: var(--danger); }
     .pill.inactive    { background: var(--surface-2);  color: var(--text-muted); }
     .pill.deleted     { background: var(--danger-bg);  color: var(--danger); }
+    /* Fulfillment + payment statuses */
+    .pill.fulfilled   { background: var(--success-bg); color: var(--success); }
+    .pill.completed   { background: var(--success-bg); color: var(--success); }
+    .pill.failed      { background: var(--danger-bg);  color: var(--danger); }
+    .pill.refunded    { background: var(--warning-bg); color: var(--warning); }
+    .pill.disputed    { background: var(--danger-bg);  color: var(--danger); }
     .pill.role-admin  { background: var(--primary-soft); color: var(--primary); }
     .pill.role-buyer  { background: var(--info-bg);     color: var(--info); }
     .pill.role-seller { background: var(--accent-soft); color: var(--accent-hover); }
@@ -502,6 +518,9 @@
     [data-theme="dark"] .msg.warning { color: #fcd34d; border-color: rgba(251, 191, 36, .3); }
     [data-theme="dark"] .msg.error   { color: #fca5a5; border-color: rgba(248, 113, 113, .3); }
     [data-theme="dark"] table:not(.adm-tbl) tbody tr:hover td { background: #283548; }
+    /* Custom status pills (purple/teal) need dark-mode variants. */
+    [data-theme="dark"] .pill.shipped { background: rgba(167, 139, 250, .26); color: #c4b5fd; }
+    [data-theme="dark"] .pill.closed  { background: rgba(45, 212, 191, .26);  color: #5eead4; }
     [data-theme="dark"] .field input:focus,
     [data-theme="dark"] .field select:focus,
     [data-theme="dark"] .field textarea:focus {

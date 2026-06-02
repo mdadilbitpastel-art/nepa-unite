@@ -517,7 +517,7 @@ def dashboard_view(request):
             .select_related("tenant").order_by("-created_at")[:5]
         )
         ctx["recent_orders"] = list(
-            all_orders.select_related("buyer", "tenant").order_by("-created_at")[:8]
+            all_orders.select_related("buyer", "tenant").order_by("-created_at")[:5]
         )
         ctx["top_sellers"] = list(
             CustomUser.objects.filter(role=CustomUser.Role.SELLER, status=CustomUser.Status.ACTIVE)

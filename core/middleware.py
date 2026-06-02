@@ -59,18 +59,20 @@ class InactivityLogoutMiddleware:
 
     def __init__(self, get_response):
         self.get_response = get_response
-        self.timeout = int(getattr(settings, "SESSION_INACTIVITY_TIMEOUT", 300))
 
     def __call__(self, request):
+        # Read at request time so runtime/env overrides take effect reliably.
+        timeout = int(getattr(settings, "SESSION_INACTIVITY_TIMEOUT", 900))
         user = getattr(request, "user", None)
         if user is not None and user.is_authenticated:
             now = int(time.time())
             last = request.session.get(self.SESSION_KEY)
-            if last is not None and (now - last) > self.timeout:
+            if last is not None and (now - last) > timeout:
                 logout(request)
+                minutes = max(1, timeout // 60)
                 messages.info(
                     request,
-                    "You were signed out after 5 minutes of inactivity. "
+                    f"You were signed out after {minutes} minutes of inactivity. "
                     "Please sign in again.",
                 )
                 login_url = reverse("login")
