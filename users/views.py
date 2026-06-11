@@ -41,6 +41,7 @@ from users.serializers import (
     ResetPasswordSerializer,
     TokenResponseSerializer,
 )
+from core.dispatch import safe_dispatch
 from core.tasks import write_audit_log
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,12 @@ class RegisterView(APIView):
                 status=user_status,
             )
 
-        send_welcome_email.delay(user.email)
+        # Best-effort: the account is already created, so a failure to send the
+        # welcome email (e.g. eager-mode SMTP errors on single-service deploys
+        # without a Celery worker) must not turn a successful registration into
+        # a 500.
+        safe_dispatch(send_welcome_email, user.email)
+
         return Response(
             RegisterResponseSerializer(user).data,
             status=status.HTTP_201_CREATED,
@@ -183,7 +189,7 @@ class ForgotPasswordView(APIView):
             token = default_token_generator.make_token(user)
             reset_path = reverse("reset_password", args=[uidb64, token])
             full_url = request.build_absolute_uri(reset_path)
-            send_password_reset_email.delay(user.email, full_url)
+            safe_dispatch(send_password_reset_email, user.email, full_url)
         return Response({"detail": "If an account exists, a reset email has been sent."})
 
 
@@ -261,14 +267,15 @@ class AdminMemberViewSet(viewsets.ViewSet):
         if member.tenant_id and member.tenant.status == Tenant.Status.PENDING:
             member.tenant.status = Tenant.Status.ACTIVE
             member.tenant.save(update_fields=["status"])
-        write_audit_log.delay(
+        safe_dispatch(
+            write_audit_log,
             actor_id=str(request.user.pk),
             action="member.approve",
             entity_type="CustomUser",
             entity_id=str(member.pk),
             payload={"new_status": member.status},
         )
-        send_approval_email.delay(member.email)
+        safe_dispatch(send_approval_email, member.email)
         # Sellers can't actually receive payouts until they finish Stripe
         # Connect onboarding — nudge them with a separate email. Suppressed
         # when the gate flag is off (Stripe not yet provisioned).
@@ -277,7 +284,7 @@ class AdminMemberViewSet(viewsets.ViewSet):
             and member.role == CustomUser.Role.SELLER
             and not member.stripe_account_id
         ):
-            send_seller_onboarding_email.delay(member.email)
+            safe_dispatch(send_seller_onboarding_email, member.email)
         return Response(MemberSerializer(member).data)
 
     @action(detail=True, methods=["post"])
@@ -290,14 +297,15 @@ class AdminMemberViewSet(viewsets.ViewSet):
             )
         member.status = CustomUser.Status.SUSPENDED
         member.save(update_fields=["status", "updated_at"])
-        write_audit_log.delay(
+        safe_dispatch(
+            write_audit_log,
             actor_id=str(request.user.pk),
             action="member.suspend",
             entity_type="CustomUser",
             entity_id=str(member.pk),
             payload={"new_status": member.status},
         )
-        send_suspension_email.delay(member.email)
+        safe_dispatch(send_suspension_email, member.email)
         return Response(MemberSerializer(member).data)
 
 

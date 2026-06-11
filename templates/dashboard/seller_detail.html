@@ -129,7 +129,7 @@
           </div>
         </td>
         {% endwith %}
-        <td><a href="{% url 'order_detail' o.id %}"><code>{{ o.id|stringformat:"s"|slice:":8" }}…</code></a></td>
+        <td><a href="{% url 'order_detail' o.id %}"><code class="ord-id">{{ o.id|stringformat:"s"|slice:":8" }}…</code></a></td>
         <td>{{ o.buyer.email }}</td>
         <td><span class="pill {{ o.status }}">{{ o.get_status_display }}</span></td>
         <td><strong>${{ o.total_amount }}</strong></td>

@@ -60,6 +60,52 @@
   }
   .adm-shortcut svg { color:var(--text-subtle); }
   .adm-shortcut:hover svg { color:var(--primary); }
+  /* ── Recent Activity feed ── */
+  .activity-feed { display:flex;flex-direction:column;gap:8px;padding:2px 0; }
+  .activity-item {
+    display:flex;align-items:center;gap:13px;
+    padding:11px 14px;border-radius:var(--radius-md);
+    background:var(--surface);border:1px solid var(--border);
+    text-decoration:none;
+    transition:border-color .15s,transform .15s,box-shadow .15s;
+  }
+  .activity-item:hover {
+    border-color:var(--act-color,var(--border-strong));
+    transform:translateY(-1px);box-shadow:var(--shadow-sm);text-decoration:none;
+  }
+  /* Colored icon chip — the main color cue; solid + bright per status */
+  .activity-icon {
+    width:40px;height:40px;border-radius:11px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--act-color,var(--text-muted));
+    color:#fff;
+    box-shadow:0 2px 6px var(--act-soft,transparent);
+  }
+  .activity-icon svg { width:19px;height:19px; }
+  .activity-main { flex:1;min-width:0; }
+  .activity-top { display:flex;align-items:center;gap:10px;margin-bottom:3px; }
+  .activity-company {
+    font-size:13.5px;font-weight:700;color:var(--text);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .activity-id {
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.3px;
+  }
+  .activity-sub {
+    font-size:12.5px;color:var(--text-muted);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .activity-meta { margin-left:6px;color:var(--text-subtle); }
+  .activity-amount { font-size:15px;font-weight:700;color:var(--text);flex-shrink:0; }
+  /* Status palette — bright, saturated solids so each status really pops */
+  .activity-item.status-draft       { --act-color:#64748b; --act-soft:rgba(100,116,139,.35); }
+  .activity-item.status-confirmed   { --act-color:#2563eb; --act-soft:rgba(37,99,235,.35); }
+  .activity-item.status-fulfillment { --act-color:#f59e0b; --act-soft:rgba(245,158,11,.35); }
+  .activity-item.status-shipped     { --act-color:#7c3aed; --act-soft:rgba(124,58,237,.35); }
+  .activity-item.status-delivered   { --act-color:#16a34a; --act-soft:rgba(22,163,74,.35); }
+  .activity-item.status-closed      { --act-color:#0d9488; --act-soft:rgba(13,148,136,.35); }
+  .activity-item.status-cancelled   { --act-color:#dc2626; --act-soft:rgba(220,38,38,.35); }
   @media (max-width:880px) {
     .adm-tbl,.adm-tbl > tbody,.adm-tbl > tbody > tr,.adm-tbl > tbody > tr > td {
       display:block;width:100%;margin:0;
@@ -273,20 +319,27 @@
       <a href="{% url 'orders' %}" class="btn btn-secondary btn-sm">View all</a>
     </div>
     {% if recent_orders %}
-      <table>
-        <thead><tr><th>Order</th><th>Buyer</th><th>Status</th><th>Total</th><th style="text-align:right;"></th></tr></thead>
-        <tbody>
-          {% for o in recent_orders %}
-            <tr>
-              <td><a href="{% url 'order_detail' o.id %}"><code class="ord-id">{{ o.id|stringformat:"s"|slice:":8" }}…</code></a></td>
-              <td>{{ o.buyer.tenant.name|default:o.buyer.email }}</td>
-              <td><span class="pill {{ o.status }}">{{ o.get_status_display }}</span></td>
-              <td><strong>${{ o.total_amount }}</strong></td>
-              <td style="text-align:right;"><a href="{% url 'order_detail' o.id %}" class="btn btn-secondary btn-sm">View</a></td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="activity-feed">
+        {% for o in recent_orders %}
+          <a href="{% url 'order_detail' o.id %}" class="activity-item status-{{ o.status }}">
+            <span class="activity-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4 7.5 4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+            </span>
+            <div class="activity-main">
+              <div class="activity-top">
+                <span class="activity-company">{{ o.tenant.name|default:o.buyer.tenant.name|default:o.buyer.email }}</span>
+                <span class="pill {{ o.status }}">{{ o.get_status_display }}</span>
+              </div>
+              <div class="activity-sub">
+                <span class="activity-id">#{{ o.id|stringformat:"s"|slice:":8" }}</span>
+                <span class="activity-meta">{{ o.buyer.email }}</span>
+                {% with si=o.items.all.0 %}{% if si %}<span class="activity-meta">· Seller: {{ si.seller.tenant.name|default:si.seller.email }}</span>{% endif %}{% endwith %}
+              </div>
+            </div>
+            <div class="activity-amount">${{ o.total_amount }}</div>
+          </a>
+        {% endfor %}
+      </div>
     {% else %}
       <div class="empty" style="padding:20px;"><h3>No orders yet</h3></div>
     {% endif %}

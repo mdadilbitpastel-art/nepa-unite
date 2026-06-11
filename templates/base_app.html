@@ -267,10 +267,17 @@
     padding:3px 10px;border-radius:999px;
     font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
   }
+  /* Light mode: dropdown is a deep-navy card — keep the original per-role colors. */
   .profile-dropdown-badge.role-seller { background:var(--accent-soft);color:var(--accent-hover); }
   .profile-dropdown-badge.role-admin { background:var(--primary-soft);color:var(--primary); }
   .profile-dropdown-badge.role-auditor { background:#ede9fe;color:#6d28d9; }
   .profile-dropdown-badge.role-buyer { background:#ecfdf5;color:#047857; }
+  /* Dark mode: dropdown is a white card — use a deep-navy filled badge that
+     matches the left-nav background for every role. */
+  [data-theme="dark"] .profile-dropdown-badge.role-seller,
+  [data-theme="dark"] .profile-dropdown-badge.role-admin,
+  [data-theme="dark"] .profile-dropdown-badge.role-auditor,
+  [data-theme="dark"] .profile-dropdown-badge.role-buyer { background:#0c2340;color:#fff; }
   .profile-dropdown-divider { height:1px;background:var(--profile-divider);margin:0;transition:background-color .3s; }
   .profile-dropdown-links { padding:6px 0; }
   .profile-dropdown-link {

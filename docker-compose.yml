@@ -32,9 +32,14 @@ services:
 
   web:
     build: .
+    # Dev server: Django's runserver auto-reloads on .py AND template changes.
+    # Its reloader uses mtime polling (StatReloader), which works on the WSL2
+    # /mnt/c bind mount where inotify file events don't fire — so you no longer
+    # need to `docker compose restart web` to see changes. For prod-like runs,
+    # swap back to the gunicorn command.
     command: >
       sh -c "python manage.py migrate --no-input &&
-             gunicorn nepa_unite.wsgi:application --bind 0.0.0.0:8000 --workers 4 --reload"
+             python manage.py runserver 0.0.0.0:8000"
     env_file:
       - .env
     environment:

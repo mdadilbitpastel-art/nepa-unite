@@ -26,6 +26,7 @@ from django.utils.encoding import force_bytes
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
+from core.dispatch import safe_dispatch
 from notifications.tasks import send_password_reset_email
 from orders.models import Order
 from products.models import Product
@@ -207,7 +208,7 @@ def forgot_password_view(request):
                     "reset_password", args=[uidb64, token]
                 )
                 full_url = request.build_absolute_uri(reset_path)
-                send_password_reset_email.delay(user.email, full_url)
+                safe_dispatch(send_password_reset_email, user.email, full_url)
             sent = True
     else:
         form = ForgotPasswordForm()
@@ -263,7 +264,7 @@ def change_password_confirm(request):
         token = default_token_generator.make_token(user)
         reset_path = reverse("reset_password", args=[uidb64, token])
         full_url = request.build_absolute_uri(reset_path)
-        send_password_reset_email.delay(user.email, full_url)
+        safe_dispatch(send_password_reset_email, user.email, full_url)
         messages.success(request, "Password reset link sent to your email!")
         return redirect("dashboard")
     return render(request, "dashboard/change_password.html")
@@ -517,7 +518,9 @@ def dashboard_view(request):
             .select_related("tenant").order_by("-created_at")[:5]
         )
         ctx["recent_orders"] = list(
-            all_orders.select_related("buyer", "tenant").order_by("-created_at")[:5]
+            all_orders.select_related("buyer", "buyer__tenant", "tenant")
+            .prefetch_related("items__seller__tenant")
+            .order_by("-created_at")[:5]
         )
         ctx["top_sellers"] = list(
             CustomUser.objects.filter(role=CustomUser.Role.SELLER, status=CustomUser.Status.ACTIVE)
@@ -921,7 +924,7 @@ def seller_product_create(request):
             product.tenant = user.tenant
             product.seller = user
             product.save()
-            reindex_product.delay(str(product.pk))
+            safe_dispatch(reindex_product, str(product.pk))
             messages.success(request, f"Created {product.sku} — {product.name}.")
             return redirect("seller_products")
     else:
@@ -955,7 +958,7 @@ def seller_product_edit(request, product_id):
         )
         if form.is_valid():
             product = form.save()
-            reindex_product.delay(str(product.pk))
+            safe_dispatch(reindex_product, str(product.pk))
             messages.success(request, f"Updated {product.sku}.")
             return redirect("seller_products")
     else:
@@ -993,7 +996,7 @@ def seller_product_toggle_status(request, product_id):
         msg = f"Published {product.sku} to the catalog."
         msg_kind = "success"
     product.save(update_fields=["status", "updated_at"])
-    reindex_product.delay(str(product.pk))
+    safe_dispatch(reindex_product, str(product.pk))
     getattr(messages, msg_kind)(request, msg)
     return redirect("seller_products")
 
@@ -1011,7 +1014,7 @@ def seller_product_delete(request, product_id):
     if product.status != Product.Status.DELETED:
         product.status = Product.Status.DELETED
         product.save(update_fields=["status", "updated_at"])
-        remove_product_from_index.delay(str(product.pk))
+        safe_dispatch(remove_product_from_index, str(product.pk))
         messages.warning(request, f"Deleted {product.sku} — {product.name}.")
     return redirect("seller_products")
 
@@ -1315,7 +1318,7 @@ def admin_approve_user(request, user_id):
         and not member.stripe_account_id
     ):
         from notifications.tasks import send_seller_onboarding_email
-        send_seller_onboarding_email.delay(member.email)
+        safe_dispatch(send_seller_onboarding_email, member.email)
     messages.success(request, f"Approved {member.email}.")
     return _safe_redirect(request, "dashboard")
 
