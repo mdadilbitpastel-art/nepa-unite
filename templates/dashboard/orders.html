@@ -145,7 +145,7 @@
           <th>Product</th>
           <th>Order</th>
           {% if role != 'buyer' %}<th>Buyer</th>{% endif %}
-          {% if role == 'admin' or role == 'auditor' %}<th>Tenant</th>{% endif %}
+          {% if role == 'admin' or role == 'auditor' %}<th>Seller</th>{% endif %}
           <th>Status</th>
           <th>Total</th>
           <th>Age</th>
@@ -165,7 +165,7 @@
             {% endwith %}
             <td><a href="{% url 'order_detail' o.id %}"><code class="ord-id">{{ o.id|stringformat:"s"|slice:":8" }}…</code></a></td>
             {% if role != 'buyer' %}<td>{{ o.buyer.tenant.name|default:o.buyer.email }}</td>{% endif %}
-            {% if role == 'admin' or role == 'auditor' %}<td>{{ o.tenant.name|default:"—" }}</td>{% endif %}
+            {% if role == 'admin' or role == 'auditor' %}<td>{% if o.seller_names %}{{ o.seller_names|join:", " }}{% else %}—{% endif %}</td>{% endif %}
             <td><span class="pill {{ o.status }}">{{ o.get_status_display|default:o.status }}</span></td>
             <td><strong>${{ o.total_amount }}</strong></td>
             <td>

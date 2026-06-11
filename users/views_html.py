@@ -1045,7 +1045,7 @@ def orders_view(request):
         if seller_obj:
             base_qs = base_qs.filter(items__seller=seller_obj).distinct()
 
-    orders_qs = base_qs.select_related("buyer", "buyer__tenant", "tenant").prefetch_related("items__product").order_by("-created_at")
+    orders_qs = base_qs.select_related("buyer", "buyer__tenant", "tenant").prefetch_related("items__product", "items__seller__tenant").order_by("-created_at")
 
     if status_filter in Order.Status.values:
         orders_qs = orders_qs.filter(status=status_filter)
@@ -1080,6 +1080,18 @@ def orders_view(request):
             and o.status_changed_at
             and o.status_changed_at <= overdue_cutoff
         )
+        # Distinct seller business names across the order's items (an order can
+        # span multiple sellers). Shown in the admin/auditor "Seller" column.
+        seller_names: list[str] = []
+        for it in o.items.all():
+            seller = it.seller
+            name = (
+                (seller.tenant.name if seller and seller.tenant_id else None)
+                or (seller.email if seller else "—")
+            )
+            if name not in seller_names:
+                seller_names.append(name)
+        o.seller_names = seller_names
     ctx = {
         "user": user,
         "role": user.role,
