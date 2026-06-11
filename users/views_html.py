@@ -869,7 +869,10 @@ def _product_writeable_or_redirect(request, *, require_owner=None):
     user = request.user
     if user.role not in (CustomUser.Role.SELLER, CustomUser.Role.ADMIN):
         return redirect("dashboard")
-    if user.tenant_id is None:
+    # A tenant is only needed by sellers (a new listing inherits the seller's
+    # business). Admins moderate any seller's products and have no tenant of
+    # their own, so this check must not apply to them.
+    if user.role == CustomUser.Role.SELLER and user.tenant_id is None:
         messages.error(request, "Your account isn't attached to a business yet.")
         return redirect("seller_products")
     if (
