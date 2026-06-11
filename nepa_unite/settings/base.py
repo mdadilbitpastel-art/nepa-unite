@@ -1,5 +1,6 @@
 """Shared settings — everything env-driven via django-environ."""
 
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -30,6 +31,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third-party
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "drf_spectacular",
     "django_elasticsearch_dsl",
@@ -166,7 +168,7 @@ CELERY_TASK_TRACK_STARTED = True
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "users.authentication.Auth0JWTAuthentication",
+        "users.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
@@ -190,22 +192,30 @@ SPECTACULAR_SETTINGS = {
 }
 
 # ---------------------------------------------------------------------------
+# JWT (djangorestframework-simplejwt) — self-issued access/refresh tokens.
+# Tokens are signed with DJANGO_SECRET_KEY (HS256); no external IdP needed.
+# Refresh tokens rotate and the previous one is blacklisted on use, so a
+# stolen refresh token is single-use. Logout blacklists the presented token.
+# ---------------------------------------------------------------------------
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=env.int("JWT_ACCESS_MINUTES", default=60)
+    ),
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=env.int("JWT_REFRESH_DAYS", default=7)
+    ),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "SIGNING_KEY": SECRET_KEY,
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+# ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env("DJANGO_CORS_ALLOWED_ORIGINS")
-
-# ---------------------------------------------------------------------------
-# Auth0
-# ---------------------------------------------------------------------------
-AUTH0_DOMAIN = env("AUTH0_DOMAIN", default="")
-AUTH0_AUDIENCE = env("AUTH0_AUDIENCE", default="")
-AUTH0_ISSUER = env("AUTH0_ISSUER", default="")
-AUTH0_ALGORITHMS = env("AUTH0_ALGORITHMS", default="RS256").split(",")
-AUTH0_MGMT_CLIENT_ID = env("AUTH0_MGMT_CLIENT_ID", default="")
-AUTH0_MGMT_CLIENT_SECRET = env("AUTH0_MGMT_CLIENT_SECRET", default="")
-AUTH0_MGMT_AUDIENCE = env("AUTH0_MGMT_AUDIENCE", default="")
-AUTH0_ROLE_CLAIM = "https://nepaunite.com/role"
-AUTH0_TENANT_CLAIM = "https://nepaunite.com/tenant_id"
 
 # ---------------------------------------------------------------------------
 # Stripe

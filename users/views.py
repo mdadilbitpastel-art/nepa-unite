@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+import uuid
 
 from django.conf import settings
+from django.contrib.auth import authenticate
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
@@ -12,6 +14,9 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from django.contrib.auth.tokens import default_token_generator
 from django.urls import reverse
@@ -25,7 +30,6 @@ from notifications.tasks import (
     send_suspension_email,
     send_welcome_email,
 )
-from users import auth0_client
 from users.models import BuyerAddress, CustomUser, Tenant
 from users.permissions import IsAdmin, IsBuyer, IsSelfOrAdmin
 from users.serializers import (
@@ -47,6 +51,20 @@ from core.tasks import write_audit_log
 logger = logging.getLogger(__name__)
 
 
+def _access_lifetime_seconds() -> int:
+    return int(settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"].total_seconds())
+
+
+def _issue_tokens(user: CustomUser) -> dict:
+    """Mint a fresh access + refresh pair for a user."""
+    refresh = RefreshToken.for_user(user)
+    return {
+        "access_token": str(refresh.access_token),
+        "refresh_token": str(refresh),
+        "expires_in": _access_lifetime_seconds(),
+    }
+
+
 # ---------------------------------------------------------------------------
 # /api/v1/auth/*
 # ---------------------------------------------------------------------------
@@ -62,16 +80,6 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-
-        try:
-            auth0_user = auth0_client.create_user(
-                email=data["email"], password=data["password"]
-            )
-        except auth0_client.Auth0APIError as exc:
-            return Response(
-                {"detail": "Auth0 registration failed", "error": str(exc)},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
 
         # Buyers self-onboard instantly; sellers wait for admin review
         # because they list products and receive payouts.
@@ -89,13 +97,18 @@ class RegisterView(APIView):
                 vertical_type=data["vertical_type"],
                 status=tenant_status,
             )
-            user = CustomUser.objects.create(
+            user = CustomUser(
                 email=data["email"],
-                auth0_sub=auth0_user["user_id"],
+                # We own the identity now (no external IdP). auth0_sub stays a
+                # unique non-null column; "local|<uuid>" keeps it populated and
+                # consistent with the HTML signup flow.
+                auth0_sub=f"local|{uuid.uuid4().hex}",
                 role=data["role"],
                 tenant=tenant,
                 status=user_status,
             )
+            user.set_password(data["password"])
+            user.save()
 
         # Best-effort: the account is already created, so a failure to send the
         # welcome email (e.g. eager-mode SMTP errors on single-service deploys
@@ -120,17 +133,17 @@ class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            tokens = auth0_client.login(
-                email=serializer.validated_data["email"],
-                password=serializer.validated_data["password"],
-            )
-        except auth0_client.Auth0APIError:
+        user = authenticate(
+            request,
+            username=serializer.validated_data["email"],
+            password=serializer.validated_data["password"],
+        )
+        if user is None:
             return Response(
                 {"detail": "Invalid credentials"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-        return Response(TokenResponseSerializer(tokens).data)
+        return Response(TokenResponseSerializer(_issue_tokens(user)).data)
 
 
 class RefreshView(APIView):
@@ -140,14 +153,28 @@ class RefreshView(APIView):
     def post(self, request):
         serializer = RefreshSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        # SimpleJWT's serializer validates the refresh token, rotates it, and
+        # blacklists the old one (ROTATE_REFRESH_TOKENS / BLACKLIST_AFTER_ROTATION).
+        refresh = TokenRefreshSerializer(
+            data={"refresh": serializer.validated_data["refresh_token"]}
+        )
         try:
-            tokens = auth0_client.refresh(serializer.validated_data["refresh_token"])
-        except auth0_client.Auth0APIError:
+            refresh.is_valid(raise_exception=True)
+        except (TokenError, InvalidToken):
             return Response(
                 {"detail": "Invalid refresh token"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-        return Response(TokenResponseSerializer(tokens).data)
+        data = refresh.validated_data
+        return Response(
+            TokenResponseSerializer(
+                {
+                    "access_token": data["access"],
+                    "refresh_token": data.get("refresh", ""),
+                    "expires_in": _access_lifetime_seconds(),
+                }
+            ).data
+        )
 
 
 class LogoutView(APIView):
@@ -157,14 +184,11 @@ class LogoutView(APIView):
         serializer = LogoutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            auth0_client.revoke_refresh_token(
-                serializer.validated_data["refresh_token"]
-            )
-        except auth0_client.Auth0APIError as exc:
-            logger.warning("Auth0 revoke failed: %s", exc)
-            return Response(
-                {"detail": "Logout failed"}, status=status.HTTP_502_BAD_GATEWAY
-            )
+            RefreshToken(serializer.validated_data["refresh_token"]).blacklist()
+        except (TokenError, InvalidToken):
+            # Already invalid/expired/blacklisted — the goal (token unusable)
+            # is achieved either way, so logout is idempotent.
+            pass
         return Response(status=status.HTTP_200_OK)
 
 

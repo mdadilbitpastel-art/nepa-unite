@@ -29,16 +29,14 @@ def test_flow_1_buyer_happy_path(db, monkeypatch, mock_send_email):
     admin = _make_admin(db)
     seller, product = _seed_seller_with_product(db, sku="E2E-1", price="50")
 
-    # Register
-    with patch("users.views.auth0_client.create_user",
-               return_value={"user_id": "auth0|e2e1"}):
-        response = api.post(
-            "/api/v1/auth/register",
-            {"email": "buyer-e2e1@example.com", "password": "supersecret",
-             "role": "buyer", "business_name": "BuyerCo",
-             "vertical_type": "dental"},
-            format="json",
-        )
+    # Register (self-issued JWT — no external IdP to mock)
+    response = api.post(
+        "/api/v1/auth/register",
+        {"email": "buyer-e2e1@example.com", "password": "supersecret",
+         "role": "buyer", "business_name": "BuyerCo",
+         "vertical_type": "dental"},
+        format="json",
+    )
     assert response.status_code == 201
     buyer = CustomUser.objects.get(email="buyer-e2e1@example.com")
 
@@ -113,15 +111,13 @@ def test_flow_2_seller_listing_pipeline(db, mock_send_email):
     api = APIClient()
     admin = _make_admin(db)
 
-    with patch("users.views.auth0_client.create_user",
-               return_value={"user_id": "auth0|e2e2"}):
-        response = api.post(
-            "/api/v1/auth/register",
-            {"email": "seller-e2e2@example.com", "password": "supersecret",
-             "role": "seller", "business_name": "SellerCo",
-             "vertical_type": "law_office"},
-            format="json",
-        )
+    response = api.post(
+        "/api/v1/auth/register",
+        {"email": "seller-e2e2@example.com", "password": "supersecret",
+         "role": "seller", "business_name": "SellerCo",
+         "vertical_type": "law_office"},
+        format="json",
+    )
     assert response.status_code == 201
     seller = CustomUser.objects.get(email="seller-e2e2@example.com")
 

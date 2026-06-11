@@ -21,8 +21,8 @@ production-facing buyer/seller experiences.
 | Cache / broker | Redis 7 (`django-redis` + Celery) |
 | Background work | Celery 5.4 |
 | Search | Elasticsearch / OpenSearch with PostgreSQL `ILIKE` fallback |
-| Auth (production) | Auth0 (JWT validated via JWKS) — DRF `Auth0JWTAuthentication` |
-| Auth (development) | Session-based login over a local HTML UI (Auth0 bypassed) |
+| Auth (API) | Self-issued JWT (djangorestframework-simplejwt, signed with `DJANGO_SECRET_KEY`) — DRF `JWTAuthentication` |
+| Auth (HTML UI) | Session-based email/password login |
 | Payments | Stripe Connect — Express accounts, PaymentIntents, transfers, refunds |
 | Invoices | reportlab PDF → AWS S3 with 24h pre-signed URLs |
 | Infra | AWS ECS + RDS + ElastiCache + OpenSearch + S3 |
@@ -111,8 +111,8 @@ celery -A nepa_unite worker --loglevel=info
 
 ```
 nepa_unite/         project package (settings/, urls.py, celery.py, routers.py)
-users/              CustomUser, Tenant, WorkflowTemplate; Auth0 JWT backend;
-                    dev-mode HTML auth (forms + views_html.py + templates)
+users/              CustomUser, Tenant, WorkflowTemplate; JWT auth (SimpleJWT);
+                    HTML session auth (forms + views_html.py + templates)
 products/           Product + ProductImage; search (ES + PG fallback);
                     bulk-upload Celery job; inventory service (Redis lock)
 orders/             Order + OrderItem; state machine; services
@@ -152,7 +152,7 @@ Highlights:
 
 | Endpoint | Notes |
 |---|---|
-| `POST /api/v1/auth/{register,login,refresh,logout}` | Auth0-fronted (production). The dev HTML pages bypass this. |
+| `POST /api/v1/auth/{register,login,refresh,logout}` | Self-issued JWT (SimpleJWT). The HTML pages use session auth instead. |
 | `GET/PATCH /api/v1/members/{id}` | Self-or-admin scoped. |
 | `POST /api/v1/admin/members/{id}/{approve,suspend}` | Admin-only; writes AuditLog. |
 | `GET /api/v1/products/search/` | Public; Elasticsearch with Postgres fallback. |

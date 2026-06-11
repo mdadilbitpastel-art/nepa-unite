@@ -1,38 +1,32 @@
-"""Auth0 JWT authentication — account-state enforcement.
+"""JWT authentication — account-state enforcement.
 
 Only ACTIVE accounts may authenticate against the API. Suspended/pending
 accounts are rejected at the authentication layer (every request, every role).
-The Auth0 token validation + user resolution are mocked; we only assert the
-status gate here.
+Tokens are real self-issued SimpleJWT access tokens; we assert the status gate.
 """
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 from rest_framework import exceptions
 from rest_framework.test import APIRequestFactory
+from rest_framework_simplejwt.tokens import AccessToken
 
-from users.authentication import Auth0JWTAuthentication
+from users.authentication import JWTAuthentication
 from users.models import CustomUser
-
-
-def _request():
-    return APIRequestFactory().get("/", HTTP_AUTHORIZATION="Bearer faketoken")
 
 
 def _make(tenant, status, sub):
     return CustomUser.objects.create(
-        email=f"{sub}@example.com", auth0_sub=f"auth0|{sub}",
+        email=f"{sub}@example.com", auth0_sub=f"local|{sub}",
         role=CustomUser.Role.BUYER, tenant=tenant, status=status,
     )
 
 
 def _authenticate(user):
-    with patch("users.authentication.validate_token", return_value={"sub": user.auth0_sub}), \
-         patch("users.authentication.resolve_user", return_value=user):
-        return Auth0JWTAuthentication().authenticate(_request())
+    token = str(AccessToken.for_user(user))
+    request = APIRequestFactory().get("/", HTTP_AUTHORIZATION=f"Bearer {token}")
+    return JWTAuthentication().authenticate(request)
 
 
 def test_active_user_authenticates(db, tenant):
@@ -56,4 +50,4 @@ def test_pending_user_is_rejected(db, tenant):
 
 def test_no_auth_header_returns_none(db):
     # No credentials → None (lets AllowAny endpoints through).
-    assert Auth0JWTAuthentication().authenticate(APIRequestFactory().get("/")) is None
+    assert JWTAuthentication().authenticate(APIRequestFactory().get("/")) is None

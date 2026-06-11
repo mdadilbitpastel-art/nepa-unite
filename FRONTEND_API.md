@@ -19,7 +19,7 @@ response payloads, auth requirement, and allowed roles.
 | Topic | Detail |
 |---|---|
 | **Base URL** | `https://<host>/api/v1` (JSON API). Health/docs live under `/api` (no `v1`). |
-| **Auth** | `Authorization: Bearer <access_token>` (Auth0 JWT). Get the token from `/auth/login`. |
+| **Auth** | `Authorization: Bearer <access_token>` (self-issued JWT). Get the token from `/auth/login`; refresh via `/auth/refresh`. |
 | **Account state** | Only **active** accounts may use the API. Suspended/pending accounts get `401` on every request. |
 | **Content-Type** | `application/json` for all bodies (except file uploads → `multipart/form-data`). |
 | **Trailing slash** | Router endpoints (members, products, cart, orders, wishlist, reviews, addresses, jobs) **END WITH `/`**. Hand-written endpoints (`/auth/*`, `/payments/*`, `/sellers/onboard`, `/orders/{id}/invoice`) have **NO** trailing slash. Mind this exactly. |

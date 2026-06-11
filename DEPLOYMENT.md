@@ -138,8 +138,7 @@ is injected into the ECS task at runtime.
 | `CELERY_BROKER_URL` | usually `${REDIS_URL}` on a different DB number |
 | `CELERY_RESULT_BACKEND` | same as broker |
 | `OPENSEARCH_URL` | full https URL incl. domain |
-| `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`, `AUTH0_ISSUER`, `AUTH0_ALGORITHMS` | matching the prod Auth0 tenant |
-| `AUTH0_MGMT_CLIENT_ID`, `AUTH0_MGMT_CLIENT_SECRET`, `AUTH0_MGMT_AUDIENCE` | M2M app with `read:users`, `create:users` |
+| `JWT_ACCESS_MINUTES`, `JWT_REFRESH_DAYS` | optional token lifetimes (default 60 min / 7 days); tokens are signed with `DJANGO_SECRET_KEY` |
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_CLIENT_ID` | live keys |
 | `AWS_S3_INVOICES_BUCKET` | `nepa-unite-invoices-prod` |
 | `EMAIL_BACKEND` | `django_ses.SESBackend` in prod |
