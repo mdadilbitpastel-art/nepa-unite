@@ -36,16 +36,19 @@ def _get_mgmt_token() -> str:
     token = cache.get(MGMT_TOKEN_CACHE_KEY)
     if token:
         return token
-    resp = requests.post(
-        f"{_base()}/oauth/token",
-        json={
-            "client_id": settings.AUTH0_MGMT_CLIENT_ID,
-            "client_secret": settings.AUTH0_MGMT_CLIENT_SECRET,
-            "audience": settings.AUTH0_MGMT_AUDIENCE,
-            "grant_type": "client_credentials",
-        },
-        timeout=10,
-    )
+    try:
+        resp = requests.post(
+            f"{_base()}/oauth/token",
+            json={
+                "client_id": settings.AUTH0_MGMT_CLIENT_ID,
+                "client_secret": settings.AUTH0_MGMT_CLIENT_SECRET,
+                "audience": settings.AUTH0_MGMT_AUDIENCE,
+                "grant_type": "client_credentials",
+            },
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        raise Auth0APIError(f"Auth0 token request failed: {exc}") from exc
     if resp.status_code != 200:
         raise Auth0APIError(
             f"Failed to obtain Auth0 management token: {resp.text}",
@@ -63,18 +66,29 @@ def _get_mgmt_token() -> str:
 
 def create_user(email: str, password: str) -> dict[str, Any]:
     """Create an Auth0 user via the Management API. Returns the user JSON."""
+    if not settings.AUTH0_DOMAIN:
+        raise Auth0APIError(
+            "Auth0 is not configured (AUTH0_DOMAIN is empty). Set the AUTH0_* "
+            "environment variables to enable API registration.",
+            status_code=503,
+        )
     token = _get_mgmt_token()
-    resp = requests.post(
-        f"{_base()}/api/v2/users",
-        json={
-            "email": email,
-            "password": password,
-            "connection": "Username-Password-Authentication",
-            "email_verified": False,
-        },
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=10,
-    )
+    try:
+        resp = requests.post(
+            f"{_base()}/api/v2/users",
+            json={
+                "email": email,
+                "password": password,
+                "connection": "Username-Password-Authentication",
+                "email_verified": False,
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        # Network/DNS/URL errors are not Auth0APIError on their own — wrap them
+        # so callers get a clean 502 instead of an unhandled 500.
+        raise Auth0APIError(f"Auth0 request failed: {exc}") from exc
     if resp.status_code not in (200, 201):
         raise Auth0APIError(
             f"Auth0 create_user failed: {resp.text}", resp.status_code
