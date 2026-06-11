@@ -18,6 +18,7 @@ from django.db import transaction
 from django.db.models import F
 from django_redis import get_redis_connection
 
+from core.dispatch import safe_dispatch
 from products.models import Product
 from products.tasks import low_stock_alert
 
@@ -37,12 +38,29 @@ class LockAcquireError(Exception):
     pass
 
 
+# Sentinel returned when no distributed lock is taken (single-service deploy
+# with no Redis). The DB row lock (select_for_update) plus the
+# inventory_count >= 0 CHECK constraint are sufficient with a single worker.
+_NO_LOCK = "__no_redis_lock__"
+
+
+def _redis_enabled() -> bool:
+    return bool(getattr(settings, "REDIS_URL", ""))
+
+
 def _lock_key(product_id: str) -> str:
     return f"lock:inventory:{product_id}"
 
 
 def _acquire(product_id: str, ttl: int, wait_seconds: float = 2.0) -> str | None:
-    """Acquire a redis lock; returns a token to use on release, or None on timeout."""
+    """Acquire a redis lock; returns a token to use on release, or None on timeout.
+
+    When Redis isn't configured (no REDIS_URL), skip the distributed lock and
+    return a sentinel — the surrounding transaction's select_for_update still
+    serialises concurrent decrements on a single worker.
+    """
+    if not _redis_enabled():
+        return _NO_LOCK
     client = get_redis_connection("default")
     token = uuid.uuid4().hex
     deadline = time.time() + wait_seconds
@@ -55,6 +73,8 @@ def _acquire(product_id: str, ttl: int, wait_seconds: float = 2.0) -> str | None
 
 def _release(product_id: str, token: str) -> None:
     """Release only if we still own the lock (Lua-equivalent guard)."""
+    if token == _NO_LOCK or not _redis_enabled():
+        return
     client = get_redis_connection("default")
     lua = (
         "if redis.call('get', KEYS[1]) == ARGV[1] then "
@@ -87,7 +107,7 @@ def reserve_inventory(product_id: str, quantity: int) -> int:
         product.save(update_fields=["inventory_count", "updated_at"])
         product.refresh_from_db(fields=["inventory_count"])
         if product.inventory_count < settings.LOW_STOCK_THRESHOLD:
-            low_stock_alert.delay(str(product.pk))
+            safe_dispatch(low_stock_alert, str(product.pk))
         return product.inventory_count
     finally:
         _release(product_id, token)
