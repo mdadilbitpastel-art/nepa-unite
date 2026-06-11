@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from core.dispatch import run_in_background
 from core.tasks import write_audit_log
 from notifications.service import notify_order_status_change
 from notifications.tasks import send_new_order_notification, send_order_status_email
@@ -164,7 +166,7 @@ def transition_order(*, order: Order, target_status: str, actor, note: str = "")
     )
     order_total = str(order.total_amount)
 
-    def _post_commit():
+    def _side_effects():
         write_audit_log.delay(
             actor_id=actor_pk,
             action="order.status_transition",
@@ -192,6 +194,16 @@ def transition_order(*, order: Order, target_status: str, actor, note: str = "")
                 generate_invoice_pdf.delay(order_pk)
             except Exception:  # noqa: BLE001
                 pass
+
+    def _post_commit():
+        # With a Celery worker these .delay() calls are async and cheap. Without
+        # one (eager mode on single-service deploys) they run synchronously —
+        # SMTP/webhooks/PDFs would block the HTTP response and leave the browser
+        # spinning after the status is already committed. Push them off-thread.
+        if settings.CELERY_TASK_ALWAYS_EAGER:
+            run_in_background(_side_effects)
+        else:
+            _side_effects()
 
     transaction.on_commit(_post_commit)
     return order
