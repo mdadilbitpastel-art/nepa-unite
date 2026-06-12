@@ -53,6 +53,12 @@
   .pf-sidebar li+li { margin-top:4px; }
 
   #product-attr-fields { margin-top:4px; }
+  .pf-net-hint { margin-top:6px; font-size:12px; font-weight:600; color:#047857; }
+  .pf-net-hint .muted { color:var(--text-muted); font-weight:500; }
+  [data-theme="dark"] .pf-net-hint { color:#6ee7b7; }
+  .pf-net-hint.is-warning { color:#dc2626; }
+  [data-theme="dark"] .pf-net-hint.is-warning { color:#fca5a5; }
+  .pf-needs-attention { border-color:#dc2626 !important; box-shadow:0 0 0 3px rgba(220,38,38,.12) !important; }
 </style>
 {% endblock %}
 
@@ -103,6 +109,7 @@
         <label for="{{ form.price.id_for_label }}">Price (USD)</label>
         {{ form.price }}
         {% if form.price.errors %}<ul class="errors">{% for e in form.price.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        <div class="pf-net-hint" id="pf-net-hint" hidden></div>
       </div>
       <div class="field">
         <label for="{{ form.inventory_count.id_for_label }}">Stock</label>
@@ -224,6 +231,8 @@
 </div>
 
 {% block extra_js %}
+<script id="commission-data" type="application/json">{"rates": {{ commission_rates_json|safe }}, "default": {{ default_commission_percent }}}</script>
 <script src="{% static 'js/product_form.js' %}" defer></script>
+<script src="{% static 'js/price_commission.js' %}" defer></script>
 {% endblock %}
 {% endblock %}

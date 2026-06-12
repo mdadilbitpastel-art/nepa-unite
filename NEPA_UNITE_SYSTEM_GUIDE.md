@@ -47,7 +47,8 @@ The platform supports four roles. Each role sees a tailored dashboard after logi
 - **Suspend / reactivate** — suspend any member; suspended users cannot log in.
 - **Seller & buyer detail pages** — profile, products, and order history.
 - **Product oversight** — view and manage every seller's products.
-- **Order oversight** — view all orders and drive status transitions.
+- **Order oversight** — view all orders and drive status transitions; each order detail shows an earnings breakdown (price → commission → seller net).
+- **Commission management** — set per-category commission rates (or bulk-set all at once), and view the commission ledger (pending / earned / reversed) with total earnings. Categories with no active rate are commission-free (0%).
 - **Audit log** — chronological record of administrative and order actions.
 - **System health** — live status page (database + cache connectivity).
 - **API reference** — built-in documentation of all REST endpoints.
@@ -58,6 +59,7 @@ The platform supports four roles. Each role sees a tailored dashboard after logi
 - **Activate / deactivate listings** — toggle product visibility.
 - **Order fulfilment** — view incoming orders and advance them through the lifecycle.
 - **Stripe Connect onboarding** — connect a Stripe account to receive payouts.
+- **Earnings transparency** — dashboard revenue is shown **net of commission**, and the product form previews your **net price after commission** as you enter the price.
 - **Storefront** — public seller storefront.
 
 ### 3.3 Buyer — browse and purchase (auto-activated on registration)
@@ -83,6 +85,7 @@ The platform supports four roles. Each role sees a tailored dashboard after logi
 | **Cart** | Per-buyer cart with add / update / remove and quantity validation. |
 | **Orders** | Order creation, line items, status transitions, per-item fulfilment, activity log. |
 | **Payments** | Stripe Connect onboarding, payment intents, fund disbursement to sellers, refunds. |
+| **Commissions** | Category-based seller commission (Amazon/Flipkart "referral fee" model): per-category rate schedule (0% default), snapshotted ledger booked on payment, earned on delivery, reversed on cancel/refund. |
 | **Invoices** | PDF invoice generation (reportlab). |
 | **Notifications** | Transactional email (password reset, onboarding, etc.). |
 | **Audit log** | Records administrative and order-lifecycle events. |
@@ -92,6 +95,11 @@ The platform supports four roles. Each role sees a tailored dashboard after logi
 > **Draft → Confirmed → Fulfilment → Shipped → Delivered → Closed**
 > (an order may also be **Cancelled**)
 > Per-item fulfilment status: Pending / Fulfilled / Cancelled
+
+### Commission Lifecycle
+
+> **Booked (pending)** on payment success → **Earned** on delivery → **Reversed** on cancel/refund
+> The rate is **per-category** (0% if a category has no active rate) and is **snapshotted** on each line item, so changing a rate only affects future orders.
 
 ---
 

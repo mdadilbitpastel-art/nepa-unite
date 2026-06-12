@@ -145,6 +145,15 @@ def transition_order(*, order: Order, target_status: str, actor, note: str = "")
             fulfillment_status=OrderItem.FulfillmentStatus.PENDING
         ).update(fulfillment_status=OrderItem.FulfillmentStatus.FULFILLED)
 
+    # Commission ledger follows the order lifecycle: realized once delivered,
+    # reversed if the order is cancelled. Both calls are idempotent and no-op
+    # when no commission was accrued (e.g. cancelled before payment).
+    from commissions.services import earn_for_order, reverse_for_order
+    if target_status == Order.Status.DELIVERED:
+        earn_for_order(order)
+    elif target_status == Order.Status.CANCELLED:
+        reverse_for_order(order)
+
     previous = order.status
     order.status = target_status
     order.status_changed_at = timezone.now()

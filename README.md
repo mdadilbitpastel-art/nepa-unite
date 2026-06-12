@@ -3,8 +3,8 @@
 Regional B2B marketplace backend for local businesses in **Northeastern
 Pennsylvania**. Multi-tenant, vertical-aware (dental, architectural,
 dry-cleaning, law office, etc.), with the platform handling member
-onboarding, product catalog, orders, Stripe-Connect payments, and
-invoice generation.
+onboarding, product catalog, orders, Stripe-Connect payments,
+category-based seller commissions, and invoice generation.
 
 This repository contains the Django REST API plus a small Django HTML
 admin UI used in development. A separate Next.js frontend is planned for
@@ -24,6 +24,7 @@ production-facing buyer/seller experiences.
 | Auth (API) | Self-issued JWT (djangorestframework-simplejwt, signed with `DJANGO_SECRET_KEY`) — DRF `JWTAuthentication` |
 | Auth (HTML UI) | Session-based email/password login |
 | Payments | Stripe Connect — Express accounts, PaymentIntents, transfers, refunds |
+| Commissions | Category-based seller commission (Amazon/Flipkart "referral fee" model); per-category rate schedule, snapshotted ledger, 0% default |
 | Invoices | reportlab PDF → AWS S3 with 24h pre-signed URLs |
 | Infra | AWS ECS + RDS + ElastiCache + OpenSearch + S3 |
 | CI/CD | GitHub Actions (flake8 + bandit + pytest + 80% coverage gate) |
@@ -118,6 +119,8 @@ products/           Product + ProductImage; search (ES + PG fallback);
 orders/             Order + OrderItem; state machine; services
 payments/           Payment + Invoice; Stripe Connect service;
                     invoice PDF generator
+commissions/        CommissionRate (per-category schedule) + Commission ledger;
+                    accrue/earn/reverse lifecycle; admin rate management + bulk set
 contracts/          Contract model (GPO pricing tiers)
 notifications/      Notification model + service; SES-capable email task
 webhooks/           Inbound Stripe handler + outgoing WebhookEndpoint /
@@ -163,6 +166,8 @@ Highlights:
 | `POST /api/v1/payments/intent` | Buyer-side Stripe PaymentIntent. |
 | `POST /api/v1/payments/disburse` | Admin triggers Stripe Transfer to seller. |
 | `POST /api/v1/sellers/onboard` | Stripe Express onboarding link. |
+| `GET /api/v1/commissions/` | Admin; category-based commission ledger (+ `/summary/`). |
+| `GET/POST /api/v1/commissions/rates/` | Admin; per-category commission rate schedule. |
 | `POST /api/v1/webhooks/stripe` | Signature-verified Stripe receiver. |
 | `GET /api/v1/orders/{id}/invoice` | Pre-signed S3 URL (auto-refreshed on expiry). |
 

@@ -1,0 +1,126 @@
+{% extends "base_app.html" %}
+{% block title %}Commission rates · NEPA Unite{% endblock %}
+{% block header_title %}Commission Rates{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+  .rates-toolbar {
+    display:flex; align-items:center; gap:var(--space-3);
+    flex-wrap:wrap; margin-bottom:var(--space-4);
+  }
+  .rates-toolbar input[type="search"] {
+    padding:8px 12px; border:1px solid var(--border-strong);
+    border-radius:var(--radius-md); background:var(--surface-tint);
+    color:var(--text); font-size:13px; font-family:inherit; min-width:240px;
+  }
+  .rates-toolbar input[type="search"]:focus {
+    outline:none; background:var(--surface); border-color:var(--primary);
+    box-shadow:0 0 0 3px rgba(12,35,64,.12);
+  }
+  .rates-toolbar .spacer { margin-left:auto; }
+  .rate-actions {
+    display:flex; align-items:stretch; gap:var(--space-3);
+    flex-wrap:wrap; justify-content:space-between; margin-bottom:var(--space-4);
+  }
+  .rate-add, .rate-bulk { flex:0 0 auto; }
+  .rate-add {
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    padding:12px;
+    background:var(--surface-tint); border:1px dashed var(--border-strong);
+    border-radius:var(--radius-md);
+  }
+  .rate-add input[type="text"], .rate-input {
+    padding:6px 9px; border:1px solid var(--border-strong);
+    border-radius:6px; background:var(--surface); color:var(--text);
+    font-size:13px; font-family:inherit; font-variant-numeric:tabular-nums;
+  }
+  .rate-add input[type="text"] { min-width:200px; }
+  .rate-input { width:84px; text-align:right; }
+  .rate-add label, .rates-tbl label {
+    display:inline-flex; align-items:center; gap:5px; font-size:12.5px;
+    color:var(--text-muted); cursor:pointer;
+  }
+  .rates-tbl td { vertical-align:middle; }
+  .rate-default-note { color:var(--text-muted); font-size:12.5px; }
+  .rate-bulk {
+    display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;
+    padding:12px;
+    background:var(--surface-tint); border:1px dashed var(--border-strong);
+    border-radius:var(--radius-md);
+  }
+  .rate-bulk-label { font-size:13px; font-weight:600; color:var(--text); }
+</style>
+{% endblock %}
+
+{% block app_content %}
+<div class="card">
+  <div class="rates-toolbar">
+    <form method="get">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search category…" autocomplete="off">
+    </form>
+    <span class="rate-default-note">
+      {{ total_rates }} categories · a category with no active rate is commission-free (0%)
+    </span>
+    <a href="{% url 'commissions' %}" class="btn btn-secondary btn-sm spacer">← Back to commissions</a>
+  </div>
+
+  {# Add-new (left) + bulk set-all (right), side by side #}
+  <div class="rate-actions">
+  <form method="post" class="rate-add">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    <input type="text" name="category" placeholder="New category name" required>
+    <input class="rate-input" type="number" name="percent" step="0.01" min="0" max="100" placeholder="%" required>
+    <input class="rate-input" type="number" name="min_fee" step="0.01" min="0" placeholder="Min $" value="0">
+    <label><input type="checkbox" name="is_active" checked> Active</label>
+    <button type="submit" class="btn btn-primary btn-sm">Add rate</button>
+  </form>
+
+  {# Bulk: set every (or every matching) category to one percent at once #}
+  <form method="post" class="rate-bulk" data-confirm="Set {% if q %}all matching{% else %}ALL{% endif %} categories to the entered percent? This overwrites their current rates.">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="set_all">
+    <span class="rate-bulk-label">Set {% if q %}matching{% else %}all {{ total_rates }}{% endif %} categories to</span>
+    <input class="rate-input" type="number" name="percent" step="0.01" min="0" max="100" placeholder="%" required>
+    <button type="submit" class="btn btn-primary btn-sm">Apply to all{% if q %} matching{% endif %}</button>
+  </form>
+  </div>
+
+  {% if rates %}
+    {# Per-row edit forms (HTML5 `form` attribute lets the inputs live in the table). #}
+    {% for rate in rates %}<form method="post" id="rf-{{ rate.id }}" hidden>{% csrf_token %}<input type="hidden" name="rate_id" value="{{ rate.id }}"></form>{% endfor %}
+    <table class="rates-tbl">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th style="width:120px;">Rate (%)</th>
+          <th style="width:120px;">Min fee ($)</th>
+          <th style="width:80px;">Active</th>
+          <th style="width:90px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rate in rates %}
+          <tr>
+            <td>{{ rate.category }}</td>
+            <td><input form="rf-{{ rate.id }}" class="rate-input" type="number" name="percent" value="{{ rate.percent }}" step="0.01" min="0" max="100"></td>
+            <td><input form="rf-{{ rate.id }}" class="rate-input" type="number" name="min_fee" value="{{ rate.min_fee }}" step="0.01" min="0"></td>
+            <td><input form="rf-{{ rate.id }}" type="checkbox" name="is_active" {% if rate.is_active %}checked{% endif %}></td>
+            <td style="text-align:right;"><button form="rf-{{ rate.id }}" type="submit" class="btn btn-primary btn-sm">Save</button></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include "components/pagination.html" %}
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+      </div>
+      <h3>{% if q %}No matching categories{% else %}No commission rates yet{% endif %}</h3>
+      <p class="text-sm">{% if q %}Try a different search.{% else %}Add one above, or run the seed_commission_rates command.{% endif %}</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

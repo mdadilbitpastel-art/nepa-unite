@@ -19,15 +19,29 @@
   .app-sidebar {
     background: var(--sidebar-bg);
     color: #e2e8f0;
-    padding: 22px 16px;
+    padding: 16px 16px;
     display: flex;
     flex-direction: column;
-    gap: 22px;
+    gap: 14px;
     position: sticky;
     top: 0;
     height: 100vh;
     overflow-y: auto;
+    z-index: 5;
+    /* Same drop shadow as the top header on the right edge. Border matches the
+       sidebar background (no accent colour). */
+    border-right: 1px solid var(--sidebar-bg);
+    box-shadow: 8px 0 22px -6px rgba(120, 85, 20, .16),
+                4px 0 8px -2px rgba(15, 23, 42, .08);
+    /* Keep the nav scrollable on short screens but hide the scrollbar chrome. */
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* legacy Edge/IE */
   }
+  [data-theme="dark"] .app-sidebar {
+    box-shadow: 8px 0 22px -6px rgba(0, 0, 0, .55),
+                4px 0 8px -2px rgba(0, 0, 0, .4);
+  }
+  .app-sidebar::-webkit-scrollbar { width: 0; height: 0; display: none; }  /* WebKit/Blink */
   .app-sidebar .brand-mark { color: #fff; padding: 4px 10px; }
   .app-sidebar .brand-mark .brand-text { font-size: 17px; }
 
@@ -154,36 +168,30 @@
   .profile-bar {
     display:flex;align-items:center;justify-content:space-between;
     padding:14px 32px;margin:-24px -32px 20px -32px;
-    border-bottom:1px solid rgba(196,143,66,.4);
     position:sticky;top:0;z-index:50;
     background:rgba(255,255,255,.72);
     -webkit-backdrop-filter:saturate(180%) blur(14px);
     backdrop-filter:saturate(180%) blur(14px);
     box-shadow:0 8px 22px -6px rgba(120,85,20,.16),
-               0 2px 0 0 rgba(212,161,85,.18) inset,
                0 4px 8px -2px rgba(15,23,42,.08);
     transition:padding .6s cubic-bezier(.4,0,.2,1),
                box-shadow .6s cubic-bezier(.4,0,.2,1),
                background-color .3s;
   }
   [data-theme="dark"] .profile-bar {
-    border-bottom:1px solid rgba(224,173,90,.28);
     background:linear-gradient(180deg,rgba(48,62,84,.82) 0%,rgba(33,44,62,.76) 100%);
     box-shadow:0 8px 22px -6px rgba(0,0,0,.55),
-               0 1px 0 0 rgba(224,173,90,.16) inset,
                0 4px 8px -2px rgba(0,0,0,.4);
   }
   .profile-bar.is-stuck {
     padding:10px 32px;
     background:rgba(255,255,255,.85);
     box-shadow:0 14px 30px -10px rgba(120,85,20,.26),
-               0 2px 0 0 rgba(212,161,85,.22) inset,
                0 6px 12px -4px rgba(15,23,42,.12);
   }
   [data-theme="dark"] .profile-bar.is-stuck {
     background:linear-gradient(180deg,rgba(48,62,84,.94) 0%,rgba(33,44,62,.9) 100%);
     box-shadow:0 14px 30px -10px rgba(0,0,0,.7),
-               0 1px 0 0 rgba(224,173,90,.2) inset,
                0 6px 12px -4px rgba(0,0,0,.5);
   }
   .profile-bar-title {
@@ -195,17 +203,16 @@
   .profile-bar-title {
     font-size:30px;font-weight:800;
     line-height:1.2;text-transform:uppercase;letter-spacing:.5px;
-    color:var(--accent);
-    background:linear-gradient(180deg,#d99a3a 0%,#c07f24 42%,#9c6213 72%,#caa14f 100%);
+    /* Golden gradient, clipped to the text. Light mode: rich, saturated gold
+       (reads on the near-white bar without looking washed-out or too dark).
+       Dark mode: brighter, warmer gold so it stays legible on dark navy. */
+    background:linear-gradient(135deg,#dca23a 0%,#c0821c 50%,#9e6510 100%);
     -webkit-background-clip:text;background-clip:text;
-    -webkit-text-fill-color:transparent;
-    filter:drop-shadow(0 1px 0 rgba(255,255,255,.55))
-           drop-shadow(0 1px 2px rgba(120,75,10,.25));
+    -webkit-text-fill-color:transparent;color:transparent;
   }
   [data-theme="dark"] .profile-bar-title {
-    background:linear-gradient(180deg,#fff2c2 0%,#ffcf6b 38%,#eab24a 66%,#fff4d4 100%);
+    background:linear-gradient(135deg,#ffd98a 0%,#f2c268 50%,#dba84e 100%);
     -webkit-background-clip:text;background-clip:text;
-    filter:none;
   }
   .profile-bar-right {
     display:flex;align-items:center;gap:14px;
@@ -263,9 +270,10 @@
     transition:color .2s;
   }
   .profile-dropdown-badge {
-    display:inline-block;
-    padding:3px 10px;border-radius:999px;
-    font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+    display:inline-flex;align-items:center;
+    padding:6px 14px;border-radius:999px;
+    border:1px solid transparent;
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
   }
   /* Light mode: dropdown is a deep-navy card — keep the original per-role colors. */
   .profile-dropdown-badge.role-seller { background:var(--accent-soft);color:var(--accent-hover); }
@@ -380,6 +388,12 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         Orders
       </a>
+      {% if user.role == 'admin' %}
+        <a href="{% url 'commissions' %}" class="nav-item {% if request.resolver_match.url_name == 'commissions' %}active{% endif %}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+          Commissions
+        </a>
+      {% endif %}
       {% if user.role == 'auditor' or user.role == 'admin' %}
         <a href="{% url 'audit_log' %}" class="nav-item {% if request.resolver_match.url_name == 'audit_log' %}active{% endif %}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>

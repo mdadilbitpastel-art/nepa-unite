@@ -19,7 +19,7 @@
     transition: background-color .12s, color .12s, border-color .12s;
   }
   .filter-bar .chip:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
-  .filter-bar .chip.active { background: var(--accent); border-color: var(--accent); color: #1a1208; }
+  .filter-bar .chip.active { background: linear-gradient(135deg, #e7b75e 0%, #c8923f 55%, #a8722a 100%); border-color: #b8843a; color: #0a0a0a; }
   .filter-bar .chip .count {
     background: rgba(15, 23, 42, .08); padding: 1px 7px;
     border-radius: 999px; font-size: 11px; font-weight: 700;
@@ -40,7 +40,7 @@
     outline: none; background: var(--surface); border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(12, 35, 64, .12);
   }
-  .low-stock { color: var(--warning); font-weight: 600; }
+  .low-stock { color: var(--danger); font-weight: 700; }
 
   .row-actions {
     display: inline-flex; gap: 6px; justify-content: flex-end;
@@ -278,7 +278,12 @@
                 </span>
               </div>
             </td>
-            {% if role == 'admin' %}<td>{{ p.seller.tenant.name|default:p.seller.email }}</td>{% endif %}
+            {% if role == 'admin' %}<td>
+              <div class="biz-cell">
+                <span class="biz-logo">{% if p.seller.tenant and p.seller.tenant.logo %}<img src="{{ p.seller.tenant.logo.url }}" alt="" data-fallback>{% else %}<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</span>
+                <span class="biz-name name-hint" data-tip="{{ p.seller.email }}">{{ p.seller.tenant.name|default:p.seller.email }}</span>
+              </div>
+            </td>{% endif %}
             <td><strong>${{ p.price }}</strong></td>
             <td class="{% if p.inventory_count < 5 %}low-stock{% endif %}">{{ p.inventory_count }}</td>
             <td><span class="pill {{ p.status }}">{{ p.status }}</span></td>

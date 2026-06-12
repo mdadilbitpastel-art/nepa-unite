@@ -42,6 +42,11 @@ def handle_payment_succeeded(event: dict) -> None:
         order.status = Order.Status.CONFIRMED
         order.save(update_fields=["status", "updated_at"])
 
+    # Book the admin's commission for each sold line item now that the buyer's
+    # money is captured. Idempotent — Stripe retries this webhook.
+    from commissions.services import accrue_for_order
+    accrue_for_order(order)
+
     write_audit_log.delay(
         actor_id=None,
         action="payment.succeeded",

@@ -382,11 +382,21 @@ def dashboard_view(request):
             status__in=[Order.Status.DELIVERED, Order.Status.CLOSED]
         ).count()
         ctx["total_orders_count"] = seller_orders.count()
-        ctx["total_revenue"] = (
+        gross_revenue = (
             seller_orders.filter(status__in=[
                 Order.Status.DELIVERED, Order.Status.CLOSED,
             ]).aggregate(total=models.Sum("total_amount"))["total"]
         ) or 0
+        # Show the seller their revenue net of the platform commission (the
+        # admin's earned cut on their delivered items).
+        from commissions.models import Commission
+        seller_commission = (
+            Commission.objects.filter(
+                seller=user, status=Commission.Status.EARNED
+            ).aggregate(total=models.Sum("commission_amount"))["total"]
+        ) or 0
+        ctx["total_revenue"] = gross_revenue - seller_commission
+        ctx["seller_commission_total"] = seller_commission
 
         today = timezone.now().date()
         days_7_ago = today - timedelta(days=6)
@@ -433,9 +443,7 @@ def dashboard_view(request):
     elif user.role == CustomUser.Role.ADMIN:
         import json
         from datetime import timedelta
-        from decimal import Decimal
         from django.db.models.functions import TruncDate
-        from orders.models import OrderItem
 
         all_orders = Order.objects.all()
         all_users = CustomUser.objects.all()
@@ -789,7 +797,7 @@ def seller_products_view(request):
     query = request.GET.get("q", "").strip()
     seller_filter = request.GET.get("seller", "").strip()
 
-    base_qs = Product.objects.select_related("tenant", "seller")
+    base_qs = Product.objects.select_related("tenant", "seller", "seller__tenant")
     if user.role == CustomUser.Role.SELLER:
         base_qs = base_qs.filter(seller=user)
 
@@ -909,6 +917,23 @@ def admin_product_detail(request, product_id):
     })
 
 
+def _commission_rates_context() -> dict:
+    """Category → commission-percent map (+ default) for the live price calc."""
+    import json
+
+    from commissions.models import CommissionRate
+
+    rates = {
+        r.category: float(r.percent)
+        for r in CommissionRate.objects.filter(is_active=True)
+    }
+    return {
+        "commission_rates_json": json.dumps(rates),
+        # No active rate for a category => commission-free (0%).
+        "default_commission_percent": 0.0,
+    }
+
+
 @login_required
 @require_http_methods(["GET", "POST"])
 def seller_product_create(request):
@@ -936,7 +961,10 @@ def seller_product_create(request):
     return render(
         request,
         "dashboard/product_form.html",
-        {"user": user, "role": user.role, "form": form, "is_edit": False},
+        {
+            "user": user, "role": user.role, "form": form, "is_edit": False,
+            **_commission_rates_context(),
+        },
     )
 
 
@@ -973,6 +1001,7 @@ def seller_product_edit(request, product_id):
         {
             "user": user, "role": user.role, "form": form,
             "product": product, "is_edit": True,
+            **_commission_rates_context(),
         },
     )
 
@@ -1086,6 +1115,8 @@ def orders_view(request):
         # Distinct seller business names across the order's items (an order can
         # span multiple sellers). Shown in the admin/auditor "Seller" column.
         seller_names: list[str] = []
+        seller_contacts: list[dict] = []
+        seen_seller_emails: set[str] = set()
         for it in o.items.all():
             seller = it.seller
             name = (
@@ -1094,7 +1125,13 @@ def orders_view(request):
             )
             if name not in seller_names:
                 seller_names.append(name)
+            # Parallel name+email pairs so the "Seller" column can show an
+            # email tooltip per seller (an order can span multiple sellers).
+            if seller and seller.email not in seen_seller_emails:
+                seen_seller_emails.add(seller.email)
+                seller_contacts.append({"name": name, "email": seller.email})
         o.seller_names = seller_names
+        o.seller_contacts = seller_contacts
     ctx = {
         "user": user,
         "role": user.role,
@@ -1160,6 +1197,134 @@ def audit_log_view(request):
         "total_events": AuditLog.objects.count(),
     }
     return render(request, "dashboard/audit_log.html", ctx)
+
+
+@login_required
+def commissions_view(request):
+    """Admin: commission earnings — summary stat cards + the ledger."""
+    user = request.user
+    if user.role != CustomUser.Role.ADMIN:
+        return redirect("dashboard")
+
+    from commissions.models import Commission, CommissionRate
+    from commissions.services import summary as commission_summary
+
+    status_filter = request.GET.get("status", "").strip()
+    seller_query = request.GET.get("seller", "").strip()
+
+    ledger_qs = (
+        Commission.objects.select_related("seller", "seller__tenant", "order")
+        .order_by("-created_at")
+    )
+    if status_filter:
+        ledger_qs = ledger_qs.filter(status=status_filter)
+    if seller_query:
+        ledger_qs = ledger_qs.filter(seller__email__icontains=seller_query)
+
+    page = _paginate(request, ledger_qs)
+    ctx = {
+        "user": user,
+        "role": user.role,
+        "commissions": page.object_list,
+        "page": page,
+        "elided_range": page.paginator.get_elided_page_range(
+            page.number, on_each_side=1, on_ends=1
+        ),
+        "qs_prefix": _querystring_without_page(request),
+        "status_filter": status_filter,
+        "seller_query": seller_query,
+        "status_choices": Commission.Status.choices,
+        "summary": commission_summary(),
+        "rate_count": CommissionRate.objects.filter(is_active=True).count(),
+    }
+    return render(request, "dashboard/commissions.html", ctx)
+
+
+@login_required
+def commission_rates_view(request):
+    """Admin: view + inline-edit the per-category commission rate schedule."""
+    user = request.user
+    if user.role != CustomUser.Role.ADMIN:
+        return redirect("dashboard")
+
+    from decimal import Decimal, InvalidOperation
+
+    from commissions.models import CommissionRate
+
+    if request.method == "POST":
+        action = request.POST.get("action", "save")
+
+        # Bulk: set every (optionally search-filtered) category to one percent.
+        if action == "set_all":
+            try:
+                percent = Decimal(request.POST.get("percent", "") or "0")
+            except (InvalidOperation, TypeError):
+                messages.error(request, "Rate must be a number.")
+                return redirect(request.get_full_path())
+            if percent < 0 or percent > 100:
+                messages.error(request, "Rate must be between 0 and 100.")
+                return redirect(request.get_full_path())
+            q = request.GET.get("q", "").strip()
+            bulk_qs = CommissionRate.objects.all()
+            if q:
+                bulk_qs = bulk_qs.filter(category__icontains=q)
+            n = bulk_qs.update(percent=percent, updated_at=timezone.now())
+            scope = f"matching “{q}”" if q else "all"
+            messages.success(
+                request,
+                f"Set {n} {scope} categor{'y' if n == 1 else 'ies'} to {percent}%.",
+            )
+            return redirect(request.get_full_path())
+
+        if action == "add":
+            category = request.POST.get("category", "").strip()
+            if not category:
+                messages.error(request, "Category name is required.")
+                return redirect(request.get_full_path())
+            if CommissionRate.objects.filter(category__iexact=category).exists():
+                messages.error(request, f"A rate for “{category}” already exists.")
+                return redirect(request.get_full_path())
+            rate = CommissionRate(category=category)
+        else:
+            rate = get_object_or_404(CommissionRate, pk=request.POST.get("rate_id"))
+
+        try:
+            percent = Decimal(request.POST.get("percent", "0") or "0")
+            min_fee = Decimal(request.POST.get("min_fee", "0") or "0")
+        except (InvalidOperation, TypeError):
+            messages.error(request, "Rate and minimum fee must be numbers.")
+            return redirect(request.get_full_path())
+        if percent < 0 or percent > 100 or min_fee < 0:
+            messages.error(request, "Rate must be between 0 and 100, fee ≥ 0.")
+            return redirect(request.get_full_path())
+
+        rate.percent = percent
+        rate.min_fee = min_fee
+        rate.is_active = bool(request.POST.get("is_active"))
+        rate.save()
+        verb = "Added" if action == "add" else "Updated"
+        messages.success(request, f"{verb} commission rate for {rate.category}.")
+        return redirect(request.get_full_path())
+
+    q = request.GET.get("q", "").strip()
+    rates_qs = CommissionRate.objects.all()
+    if q:
+        rates_qs = rates_qs.filter(category__icontains=q)
+
+    page = _paginate(request, rates_qs)
+    ctx = {
+        "user": user,
+        "role": user.role,
+        "rates": page.object_list,
+        "page": page,
+        "elided_range": page.paginator.get_elided_page_range(
+            page.number, on_each_side=1, on_ends=1
+        ),
+        "qs_prefix": _querystring_without_page(request),
+        "q": q,
+        "total_rates": CommissionRate.objects.count(),
+    }
+    return render(request, "dashboard/commission_rates.html", ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -1409,6 +1574,26 @@ def order_detail_view(request, order_id):
         and order.total_amount > 0
     )
 
+    # Earnings breakdown: price → commission → seller net. Use the booked
+    # ledger (snapshotted rates) when commissions exist; otherwise estimate
+    # from current category rates so a not-yet-paid order still shows numbers.
+    from decimal import Decimal
+
+    from commissions.models import Commission
+    from commissions.services import commission_total_for_order
+
+    booked = list(order.commissions.exclude(status=Commission.Status.REVERSED))
+    if booked:
+        order_commission = sum(
+            (c.commission_amount for c in booked), Decimal("0.00")
+        )
+        commission_booked = True
+    else:
+        order_commission = commission_total_for_order(order)
+        commission_booked = False
+    order_gross = order.total_amount or Decimal("0.00")
+    order_net = order_gross - order_commission
+
     ctx = {
         "user": user,
         "role": user.role,
@@ -1420,6 +1605,12 @@ def order_detail_view(request, order_id):
         "can_pay": can_pay,
         "status_labels": dict(Order.Status.choices),
         "activity_logs": activity_logs,
+        # Buyers don't see the seller/platform split.
+        "show_financials": user.role != CustomUser.Role.BUYER,
+        "order_gross": order_gross,
+        "order_commission": order_commission,
+        "order_net": order_net,
+        "commission_booked": commission_booked,
     }
     return render(request, "dashboard/order_detail.html", ctx)
 

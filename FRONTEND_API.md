@@ -322,7 +322,49 @@ Field `file` = `.csv` (≤10 MB). Returns a **job** (track via `/jobs/`).
 
 ---
 
-## 8. Invoices  `/api/v1/orders/{order_id}/invoice`  (auth, scoped; no trailing slash)
+## 8. Commissions  `/api/v1/commissions/*`  (admin only, trailing slash)
+
+The platform takes a **category-based commission** on each sold line item
+(Amazon/Flipkart "referral fee" model). The rate comes from the per-category
+schedule; a category with **no active rate is commission-free (0%)**. Commission
+is **booked** when the buyer's payment succeeds, marked **earned** on delivery,
+and **reversed** on cancel/refund. The rate is snapshotted on each ledger row, so
+changing a rate only affects **future** orders.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/commissions/` | commission ledger (filter `?status=`, `?seller=<uuid>`) |
+| GET | `/commissions/summary/` | totals per status + `earned_total` |
+| GET | `/commissions/rates/` | list the category rate schedule |
+| POST | `/commissions/rates/` | add a category rate |
+| PUT/PATCH | `/commissions/rates/{id}/` | update a rate |
+| DELETE | `/commissions/rates/{id}/` | delete a rate (category then becomes free) |
+
+`status` enum: `pending` · `earned` · `reversed`.
+
+```json
+// GET /commissions/   →  [ ledger rows ]
+{ "id":"uuid","order":"uuid","order_item":"uuid","seller":"uuid",
+  "seller_email":"seller@example.com","category":"Lighting",
+  "base_amount":"225.00","rate_percent":"8.00","commission_amount":"18.00",
+  "status":"earned","earned_at":"...","reversed_at":null,"created_at":"..." }
+
+// GET /commissions/summary/
+{ "pending":{"total":"117.47","count":9},
+  "earned":{"total":"18.00","count":1},
+  "reversed":{"total":"0.00","count":0},
+  "earned_total":"18.00" }
+
+// GET /commissions/rates/   →  [ rate rows ]
+{ "id":"uuid","category":"Lighting","percent":"8.00","min_fee":"0.00",
+  "is_active":true,"created_at":"...","updated_at":"..." }
+
+// POST /commissions/rates/   { "category":"Implants","percent":"15.00","min_fee":"2.00" }  → 201
+```
+
+---
+
+## 9. Invoices  `/api/v1/orders/{order_id}/invoice`  (auth, scoped; no trailing slash)
 ```json
 // GET  →  fresh pre-signed PDF URL (auto-regenerated if expired)
 {
@@ -334,12 +376,12 @@ Field `file` = `.csv` (≤10 MB). Returns a **job** (track via `/jobs/`).
 
 ---
 
-## 9. Webhooks (server-to-server — NOT called by the frontend)
+## 10. Webhooks (server-to-server — NOT called by the frontend)
 - `POST /api/v1/webhooks/stripe` — Stripe → backend. Verified via `Stripe-Signature`. Listed here only so you know the order auto-confirms through it.
 
 ---
 
-## 10. Utility
+## 11. Utility
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | GET | `/api/health/` | public | `{ "status":"ok", "db":{...}, "redis":{...} }` (LB liveness) |
@@ -351,5 +393,5 @@ Field `file` = `.csv` (≤10 MB). Returns a **job** (track via `/jobs/`).
 ### Quick role cheat-sheet
 - **Buyer:** browse/search products, wishlist, reviews, cart, checkout, **pay**, view own orders & invoices, manage addresses.
 - **Seller:** manage own products (incl. bulk upload), Stripe Connect onboarding, view orders containing their items, advance fulfillment.
-- **Admin:** approve/suspend members, view everything, disburse payouts.
+- **Admin:** approve/suspend members, view everything, disburse payouts, manage commission rates + view the commission ledger.
 - **Auditor:** read-only oversight.

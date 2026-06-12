@@ -107,11 +107,13 @@ def create_payment_intent(order_id: str) -> dict[str, Any]:
     Returns {"client_secret": ..., "payment_intent_id": ...}.
     """
     _configure()
+    from commissions.services import commission_total_for_order
+
     order = Order.objects.select_for_update().get(pk=order_id)
     amount_cents = _to_cents(order.total_amount)
-    fee_cents = int(
-        amount_cents * Decimal(settings.STRIPE_PLATFORM_FEE_PERCENT) / Decimal(100)
-    )
+    # Platform fee = the admin's commission, summed over the order's line items
+    # at their category rates (single source of truth with the commission ledger).
+    platform_fee = commission_total_for_order(order)
 
     intent = stripe.PaymentIntent.create(
         amount=amount_cents,
@@ -127,7 +129,7 @@ def create_payment_intent(order_id: str) -> dict[str, Any]:
         order=order,
         stripe_payment_intent_id=intent.id,
         amount=order.total_amount,
-        platform_fee=Decimal(fee_cents) / Decimal(100),
+        platform_fee=platform_fee,
         status=Payment.Status.PENDING,
     )
     return {"client_secret": intent.client_secret, "payment_intent_id": intent.id}
@@ -199,6 +201,9 @@ def sync_payment_status(order_id: str) -> str | None:
         if order.status == Order.Status.DRAFT:
             order.status = Order.Status.CONFIRMED
             order.save(update_fields=["status", "updated_at"])
+        # Book the admin's commission (idempotent — mirrors the webhook path).
+        from commissions.services import accrue_for_order
+        accrue_for_order(order)
     elif intent.status == "canceled" and payment.status == Payment.Status.PENDING:
         payment.status = Payment.Status.FAILED
         payment.save(update_fields=["status"])
@@ -218,8 +223,12 @@ def disburse_to_seller(order_item_id: str) -> None:
     if not seller.stripe_account_id:
         raise RuntimeError(f"Seller {seller.pk} has not completed Stripe onboarding")
 
+    from commissions.services import commission_for_item
+
     gross = Decimal(item.quantity) * item.unit_price
-    fee = (gross * Decimal(settings.STRIPE_PLATFORM_FEE_PERCENT) / Decimal(100))
+    # Admin commission for this line item at its category rate (same figure
+    # booked to the commission ledger).
+    fee = commission_for_item(item)
     net = gross - fee
 
     stripe.Transfer.create(
@@ -258,6 +267,11 @@ def process_refund(order_id: str) -> None:
 
     payment.status = Payment.Status.REFUNDED
     payment.save(update_fields=["status"])
+
+    # Reverse any commission booked for this order — the admin doesn't keep a
+    # cut on refunded sales.
+    from commissions.services import reverse_for_order
+    reverse_for_order(order)
 
     for item in order.items.all():
         try:

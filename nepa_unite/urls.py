@@ -28,6 +28,7 @@ urlpatterns = [
     path("api/v1/", include("orders.urls")),
     path("api/v1/", include("payments.urls")),
     path("api/v1/", include("webhooks.urls")),
+    path("api/v1/", include("commissions.urls")),
 
     # HTML UI (dev-mode auth, sessions)
     path("", include("users.urls_html")),

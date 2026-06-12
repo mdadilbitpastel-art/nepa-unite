@@ -1,0 +1,159 @@
+{% extends "base_app.html" %}
+{% block title %}Commissions · NEPA Unite{% endblock %}
+{% block header_title %}Commissions{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+  .filter-bar {
+    display: flex; align-items: center; gap: var(--space-3);
+    flex-wrap: wrap; margin-bottom: var(--space-4);
+  }
+  .filter-bar form {
+    display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .filter-bar select,
+  .filter-bar input[type="search"] {
+    padding: 8px 12px; border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md); background: var(--surface-tint);
+    color: var(--text); font-size: 13px; font-family: inherit;
+    transition: background-color .15s, border-color .15s, box-shadow .15s;
+  }
+  .filter-bar input[type="search"] { min-width: 220px; }
+  .filter-bar select:focus,
+  .filter-bar input[type="search"]:focus {
+    outline: none; background: var(--surface); border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(12, 35, 64, .12);
+  }
+  .filter-meta {
+    margin-left: auto; color: var(--text-muted); font-size: 12.5px;
+  }
+  .amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .rate-pill {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 6px;
+    background: #ecfdf5; color: #047857;
+    font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  [data-theme="dark"] .rate-pill { background: rgba(16,185,129,.16); color: #6ee7b7; }
+  .cat-pill {
+    display: inline-flex; align-items: center;
+    padding: 2px 9px; border-radius: 999px;
+    background: var(--surface-2); color: var(--text-muted);
+    font-size: 11.5px; font-weight: 600;
+  }
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 700; line-height: 1;
+    text-transform: capitalize; letter-spacing: .2px;
+    background: transparent; border: 1px solid transparent;
+  }
+  .status-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .8; }
+  .status-badge.pending { color: #c026d3; border-color: #c026d3; }
+  .status-badge.earned { color: #16a34a; border-color: #16a34a; }
+  .status-badge.reversed { color: #64748b; border-color: #64748b; }
+  [data-theme="dark"] .status-badge.pending { color: #e879f9; border-color: #e879f9; }
+  [data-theme="dark"] .status-badge.earned { color: #4ade80; border-color: #4ade80; }
+  [data-theme="dark"] .status-badge.reversed { color: #94a3b8; border-color: #94a3b8; }
+</style>
+{% endblock %}
+
+{% block app_content %}
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-icon success">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+    </div>
+    <div><div class="label">Earned commission</div><div class="value">${{ summary.earned_total }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon warning">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </div>
+    <div><div class="label">Pending</div><div class="value">${{ summary.pending.total }}</div><div class="text-sm muted">{{ summary.pending.count }} item{{ summary.pending.count|pluralize }}</div></div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+    </div>
+    <div><div class="label">Reversed</div><div class="value">${{ summary.reversed.total }}</div><div class="text-sm muted">{{ summary.reversed.count }} item{{ summary.reversed.count|pluralize }}</div></div>
+  </div>
+  <a href="{% url 'commission_rates' %}" class="stat" style="text-decoration:none;color:inherit;" title="Manage commission rates">
+    <div class="stat-icon accent">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+    </div>
+    <div><div class="label">Active rate categories</div><div class="value">{{ rate_count }}</div></div>
+  </a>
+</div>
+
+<div class="card">
+  <div class="filter-bar">
+    <form method="get" class="auto-search-form">
+      <select name="status">
+        <option value="">All statuses</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="search" name="seller" value="{{ seller_query }}" placeholder="Filter by seller email…" autocomplete="off">
+    </form>
+    <span class="filter-meta">Category rate × line total, charged to the seller on each sale.</span>
+    <a href="{% url 'commission_rates' %}" class="btn btn-secondary btn-sm" style="margin-left:auto;">Manage rates</a>
+  </div>
+
+  {% if commissions %}
+    <table>
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Order</th>
+          <th>Seller</th>
+          <th>Category</th>
+          <th class="num">Base</th>
+          <th class="num">Rate</th>
+          <th class="num">Commission</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in commissions %}
+          <tr>
+            <td class="muted">{{ c.created_at|date:"M j, Y H:i" }}</td>
+            <td><a href="{% url 'order_detail' c.order_id %}" class="order-ref" data-tip="{{ c.order_id }}">#{{ c.order_id|stringformat:"s"|slice:":8" }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></a></td>
+            <td>
+              <div class="biz-cell">
+                <span class="biz-logo">{% if c.seller.tenant and c.seller.tenant.logo %}<img src="{{ c.seller.tenant.logo.url }}" alt="" data-fallback>{% else %}<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</span>
+                <span class="biz-name name-hint" data-tip="{{ c.seller.email }}">{{ c.seller.tenant.name|default:c.seller.email }}</span>
+              </div>
+            </td>
+            <td>{% if c.category %}<span class="cat-pill">{{ c.category }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="num"><span class="amount">${{ c.base_amount }}</span></td>
+            <td class="num"><span class="rate-pill">{{ c.rate_percent }}%</span></td>
+            <td class="num"><span class="amount">${{ c.commission_amount }}</span></td>
+            <td><span class="status-badge {{ c.status }}">{{ c.get_status_display }}</span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% include "components/pagination.html" %}
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+      </div>
+      <h3>
+        {% if status_filter or seller_query %}No matching commissions{% else %}No commissions yet{% endif %}
+      </h3>
+      <p class="text-sm">
+        {% if status_filter or seller_query %}
+          Try clearing the filters above.
+        {% else %}
+          Commissions are booked automatically when a buyer's payment succeeds,
+          and marked earned once the order is delivered.
+        {% endif %}
+      </p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

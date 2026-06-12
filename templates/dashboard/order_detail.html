@@ -171,6 +171,19 @@
 {% endwith %}
 
 <div class="od-grid">
+  {% if show_financials %}
+  <div class="od-info-card">
+    <div class="od-info-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Earnings breakdown
+    </div>
+    <div class="od-info-row"><span class="od-il">Order price</span><span class="od-iv">${{ order_gross }}</span></div>
+    <div class="od-info-row"><span class="od-il">Commission{% if not commission_booked %} (est.){% endif %}</span><span class="od-iv" style="color:var(--danger);">−${{ order_commission }}</span></div>
+    <div class="od-info-row"><span class="od-il">Seller net (profit)</span><span class="od-iv" style="color:var(--success);font-size:15px;">${{ order_net }}</span></div>
+    {% if not commission_booked %}<div class="od-info-row" style="border-bottom:0;"><span class="od-il" style="font-size:11px;font-style:italic;">Estimated — finalised once the order is paid</span><span class="od-iv"></span></div>{% endif %}
+  </div>
+  {% endif %}
+
   <div class="od-info-card">
     <div class="od-info-title">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -179,8 +192,8 @@
     <div class="od-info-row"><span class="od-il">Email</span><span class="od-iv">{{ order.buyer.email }}</span></div>
     {% if order.buyer.first_name %}<div class="od-info-row"><span class="od-il">Name</span><span class="od-iv">{{ order.buyer.first_name }} {{ order.buyer.last_name }}</span></div>{% endif %}
     {% if order.buyer.phone %}<div class="od-info-row"><span class="od-il">Phone</span><span class="od-iv">{{ order.buyer.phone }}</span></div>{% endif %}
-    {% if order.buyer.tenant %}<div class="od-info-row"><span class="od-il">Business</span><span class="od-iv">{{ order.buyer.tenant.name }}</span></div>{% endif %}
-    <div class="od-info-row"><span class="od-il">Order ID</span><span class="od-iv"><code style="font-size:11px;">{{ order.id|stringformat:"s"|slice:":8" }}…</code></span></div>
+    {% if order.buyer.tenant %}<div class="od-info-row"><span class="od-il">Business</span><span class="od-iv name-hint" data-tip="{{ order.buyer.email }}">{{ order.buyer.tenant.name }}</span></div>{% endif %}
+    <div class="od-info-row"><span class="od-il">Order ID</span><span class="od-iv order-ref" data-tip="{{ order.id }}">#{{ order.id|stringformat:"s"|slice:":8" }}</span></div>
     <div class="od-info-row"><span class="od-il">Placed</span><span class="od-iv">{{ order.created_at|date:"M j, Y H:i" }}</span></div>
     <div class="od-info-row"><span class="od-il">In current status</span><span class="od-iv">{{ order.status_changed_at|timesince }} ago</span></div>
   </div>

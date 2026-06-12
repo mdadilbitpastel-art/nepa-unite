@@ -11,6 +11,7 @@
       accent:     isDark ? '#e0ad5a' : '#d4a155',
       success:    isDark ? '#34d399' : '#047857',
       warning:    isDark ? '#fbbf24' : '#b45309',
+      danger:     isDark ? '#f87171' : '#dc2626',
       muted:      '#94a3b8',
       text:       isDark ? '#f1f5f9' : '#0f172a',
       grid:       isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.08)',
@@ -39,16 +40,24 @@
       options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: c.grid }, ticks: { stepSize: 1 } }, x: { grid: { display: false } } }, plugins: { tooltip: { callbacks: { label: function(ctx){ return ctx.parsed.y + ' orders'; } } } } }
     }));
 
-    var statusColors = [c.primary, c.accent, c.success, c.warning, '#6366f1', '#ec4899', c.muted];
+    // Match the order-status badge colors (see base.html .pill.<status>),
+    // mapped by label so each slice keeps its own colour.
+    var orderStatusPalette = {
+      draft: '#64748b', confirmed: '#2563eb', fulfillment: '#ca8a04',
+      shipped: '#7c3aed', delivered: '#16a34a', closed: '#0d9488', cancelled: '#991b1b'
+    };
+    var statusColors = (d.orderStatusLabels || []).map(function (lbl) {
+      return orderStatusPalette[String(lbl).toLowerCase()] || c.primary;
+    });
     charts.push(new Chart(document.getElementById('orderStatusChart'), {
       type: 'doughnut',
-      data: { labels: d.orderStatusLabels, datasets: [{ data: d.orderStatusData, backgroundColor: statusColors.slice(0, d.orderStatusLabels.length), borderWidth: 0 }] },
+      data: { labels: d.orderStatusLabels, datasets: [{ data: d.orderStatusData, backgroundColor: statusColors, borderWidth: 0 }] },
       options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { display: true, position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } } } }
     }));
 
     charts.push(new Chart(document.getElementById('productStatusChart'), {
       type: 'doughnut',
-      data: { labels: ['Active', 'Inactive', 'Low stock'], datasets: [{ data: [d.activeProducts, d.inactiveProducts, d.lowStock], backgroundColor: [c.success, c.muted, c.warning], borderWidth: 0 }] },
+      data: { labels: ['Active', 'Inactive', 'Low stock'], datasets: [{ data: [d.activeProducts, d.inactiveProducts, d.lowStock], backgroundColor: [c.success, c.muted, c.danger], borderWidth: 0 }] },
       options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { display: true, position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' } } } }
     }));
   }

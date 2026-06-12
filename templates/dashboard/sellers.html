@@ -38,9 +38,9 @@
     text-decoration: none;
   }
   .filter-bar .chip.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #1a1208;
+    background: linear-gradient(135deg, #e7b75e 0%, #c8923f 55%, #a8722a 100%);
+    border-color: #b8843a;
+    color: #0a0a0a;
   }
   .filter-bar .chip .count {
     background: rgba(15, 23, 42, .08);
@@ -184,7 +184,7 @@
             <td class="muted">{{ m.created_at|date:"M j, Y" }}</td>
             <td>
               <div class="row-actions">
-                <a href="{% url 'admin_seller_detail' m.id %}" class="btn btn-secondary btn-sm" title="View details">
+                <a href="{% url 'admin_seller_detail' m.id %}" class="btn btn-primary btn-sm" title="View details">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   View
                 </a>
@@ -192,19 +192,19 @@
                   <form method="post" action="{% url 'admin_approve_user' m.id %}">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                    <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+                    <button type="submit" class="btn btn-success btn-sm">Approve</button>
                   </form>
                   <form method="post" action="{% url 'admin_suspend_user' m.id %}">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                    <button type="submit" class="btn btn-secondary btn-sm">Reject</button>
+                    <button type="submit" class="btn btn-danger btn-sm">Reject</button>
                   </form>
                 {% elif m.status == 'active' %}
                   <form method="post" action="{% url 'admin_suspend_user' m.id %}"
                         data-confirm="Suspend {{ m.email|escapejs }}? They won't be able to sign in.">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                    <button type="submit" class="btn btn-secondary btn-sm">Suspend</button>
+                    <button type="submit" class="btn btn-danger btn-sm">Suspend</button>
                   </form>
                 {% elif m.status == 'suspended' %}
                   <form method="post" action="{% url 'admin_approve_user' m.id %}">

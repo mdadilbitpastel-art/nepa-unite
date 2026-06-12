@@ -25,7 +25,7 @@
   <div class="md-hero-right">
     <div class="md-hero-actions">
       {% if member.status == 'pending' %}
-        <form method="post" action="{% url 'admin_approve_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-primary btn-sm">Approve</button></form>
+        <form method="post" action="{% url 'admin_approve_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-success btn-sm">Approve</button></form>
         <form method="post" action="{% url 'admin_suspend_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-danger btn-sm">Reject</button></form>
       {% elif member.status == 'active' and member.id != user.id %}
         <form method="post" action="{% url 'admin_suspend_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-danger btn-sm">Suspend</button></form>
@@ -87,7 +87,7 @@
 <div class="card">
   <div class="card-header">
     <h2>Top Products</h2>
-    <a href="{% url 'seller_products' %}?seller={{ member.id }}" class="btn btn-secondary btn-sm">View all products</a>
+    <a href="{% url 'seller_products' %}?seller={{ member.id }}" class="btn btn-primary btn-sm">View all products</a>
   </div>
   <table>
     <thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th></tr></thead>
@@ -114,7 +114,7 @@
 <div class="card">
   <div class="card-header">
     <h2>Recent Orders</h2>
-    <a href="{% url 'orders' %}?seller={{ member.id }}" class="btn btn-secondary btn-sm">View all orders</a>
+    <a href="{% url 'orders' %}?seller={{ member.id }}" class="btn btn-primary btn-sm">View all orders</a>
   </div>
   <table>
     <thead><tr><th>Product</th><th>Order</th><th>Buyer</th><th>Status</th><th>Total</th><th>Date</th></tr></thead>
@@ -129,7 +129,7 @@
           </div>
         </td>
         {% endwith %}
-        <td><a href="{% url 'order_detail' o.id %}"><code class="ord-id">{{ o.id|stringformat:"s"|slice:":8" }}…</code></a></td>
+        <td><a href="{% url 'order_detail' o.id %}" class="order-ref" data-tip="{{ o.id }}">#{{ o.id|stringformat:"s"|slice:":8" }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></a></td>
         <td>{{ o.buyer.email }}</td>
         <td><span class="pill {{ o.status }}">{{ o.get_status_display }}</span></td>
         <td><strong>${{ o.total_amount }}</strong></td>

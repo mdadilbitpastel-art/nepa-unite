@@ -20,7 +20,7 @@
     text-transform: capitalize;
   }
   .filter-bar .chip:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
-  .filter-bar .chip.active { background: var(--accent); border-color: var(--accent); color: #1a1208; }
+  .filter-bar .chip.active { background: linear-gradient(135deg, #e7b75e 0%, #c8923f 55%, #a8722a 100%); border-color: #b8843a; color: #0a0a0a; }
   .filter-bar .chip .count {
     background: rgba(15, 23, 42, .08); padding: 1px 7px;
     border-radius: 999px; font-size: 11px; font-weight: 700;
@@ -64,6 +64,22 @@
     font-size:11px;color:var(--text-subtle);
   }
   td.ord-cell-pad { padding-top:10px;padding-bottom:10px; }
+
+  /* Overdue: an outlined red warning chip (not a solid status pill) so it
+     reads as an alert that needs attention. */
+  .overdue-flag {
+    display:inline-flex; align-items:center; gap:4px;
+    margin-top:3px; padding:2px 8px;
+    border-radius:6px;
+    font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.6px;
+    color:#dc2626; background:rgba(220,38,38,.08);
+    border:1px solid rgba(220,38,38,.45);
+  }
+  .overdue-flag svg { width:11px; height:11px; animation:overduePulse 1.5s ease-in-out infinite; }
+  @keyframes overduePulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+  [data-theme="dark"] .overdue-flag {
+    color:#fca5a5; background:rgba(248,113,113,.12); border-color:rgba(248,113,113,.5);
+  }
 </style>
 {% endblock %}
 
@@ -98,7 +114,7 @@
 <div class="card">
   {% if seller_obj %}
     <div class="msg info" style="margin-bottom:var(--space-3);">
-      Showing orders for <strong>{{ seller_obj.tenant.name|default:seller_obj.email }}</strong>
+      Showing orders for <strong class="name-hint" data-tip="{{ seller_obj.email }}">{{ seller_obj.tenant.name|default:seller_obj.email }}</strong>
       <a href="{% url 'orders' %}" style="margin-left:8px;">Clear filter</a>
     </div>
   {% endif %}
@@ -163,14 +179,14 @@
               </div>
             </td>
             {% endwith %}
-            <td><a href="{% url 'order_detail' o.id %}"><code class="ord-id">{{ o.id|stringformat:"s"|slice:":8" }}…</code></a></td>
-            {% if role != 'buyer' %}<td>{{ o.buyer.tenant.name|default:o.buyer.email }}</td>{% endif %}
-            {% if role == 'admin' or role == 'auditor' %}<td>{% if o.seller_names %}{{ o.seller_names|join:", " }}{% else %}—{% endif %}</td>{% endif %}
+            <td><a href="{% url 'order_detail' o.id %}" class="order-ref" data-tip="{{ o.id }}">#{{ o.id|stringformat:"s"|slice:":8" }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></a></td>
+            {% if role != 'buyer' %}<td><span class="name-hint" data-tip="{{ o.buyer.email }}">{{ o.buyer.tenant.name|default:o.buyer.email }}</span></td>{% endif %}
+            {% if role == 'admin' or role == 'auditor' %}<td>{% if o.seller_contacts %}{% for sc in o.seller_contacts %}<span class="name-hint" data-tip="{{ sc.email }}">{{ sc.name }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %}</td>{% endif %}
             <td><span class="pill {{ o.status }}">{{ o.get_status_display|default:o.status }}</span></td>
             <td><strong>${{ o.total_amount }}</strong></td>
             <td>
               <span class="muted">{{ o.status_changed_at|timesince }} ago</span>
-              {% if o.is_overdue %}<br><span class="pill" style="background:var(--danger-bg);color:var(--danger);margin-top:2px;">OVERDUE</span>{% endif %}
+              {% if o.is_overdue %}<br><span class="overdue-flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Overdue</span>{% endif %}
             </td>
             <td style="text-align:right;">
               <a href="{% url 'order_detail' o.id %}" class="btn btn-primary btn-sm">

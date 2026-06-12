@@ -157,7 +157,7 @@
       <div class="stat-icon success">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
       </div>
-      <div><div class="label">Revenue</div><div class="value">${{ total_revenue }}</div></div>
+      <div><div class="label">Net revenue</div><div class="value">${{ total_revenue }}</div><div class="text-sm muted">after ${{ seller_commission_total }} commission</div></div>
     </div>
   </div>
 
@@ -264,22 +264,26 @@
     <td>
       <div class="card">
         <div class="card-header">
-          <h2>{% if pending_members %}Pending approvals <span class="pill pending" style="margin-left:6px;">{{ pending_members|length }}</span>{% else %}Pending approvals{% endif %}</h2>
+          <h2 style="display:inline-flex;align-items:center;gap:8px;">Pending approvals{% if pending_members %} <span class="pill pending">{{ pending_members|length }}</span>{% endif %}</h2>
           <div class="row" style="gap:6px;">
             <a href="{% url 'admin_sellers' %}" class="btn btn-secondary btn-sm">Sellers</a>
           </div>
         </div>
         {% if pending_members %}
           <table>
-            <thead><tr><th>Business</th><th style="white-space:nowrap;">Role</th><th style="text-align:right;white-space:nowrap;">Action</th></tr></thead>
+            <thead><tr><th>Business</th><th style="text-align:right;white-space:nowrap;">Action</th></tr></thead>
             <tbody>
               {% for m in pending_members %}
                 <tr>
-                  <td><span title="{{ m.email }}" style="border-bottom:1px dotted var(--text-subtle);cursor:help;">{{ m.tenant.name|default:m.email }}</span></td>
-                  <td><span class="pill role-{{ m.role }}">{{ m.get_role_display }}</span></td>
+                  <td>
+                    <div class="biz-cell">
+                      <span class="biz-logo">{% if m.tenant and m.tenant.logo %}<img src="{{ m.tenant.logo.url }}" alt="" data-fallback>{% else %}<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</span>
+                      <span class="biz-name name-hint" data-tip="{{ m.email }}">{{ m.tenant.name|default:m.email }}</span>
+                    </div>
+                  </td>
                   <td style="text-align:right;white-space:nowrap;">
                     <div class="row" style="justify-content:flex-end;gap:6px;">
-                      <form method="post" action="{% url 'admin_approve_user' m.id %}" style="display:inline;">{% csrf_token %}<button type="submit" class="btn btn-primary btn-sm">Approve</button></form>
+                      <form method="post" action="{% url 'admin_approve_user' m.id %}" style="display:inline;">{% csrf_token %}<button type="submit" class="btn btn-success btn-sm">Approve</button></form>
                       <form method="post" action="{% url 'admin_suspend_user' m.id %}" style="display:inline;">{% csrf_token %}<button type="submit" class="btn btn-danger btn-sm">Reject</button></form>
                     </div>
                   </td>
@@ -301,7 +305,12 @@
           <tbody>
             {% for s in top_sellers %}
               <tr>
-                <td style="font-weight:600;">{{ s.tenant__name|default:s.email }}</td>
+                <td>
+                  <div class="biz-cell">
+                    <span class="biz-logo">{% if s.tenant and s.tenant.logo %}<img src="{{ s.tenant.logo.url }}" alt="" data-fallback>{% else %}<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/></svg>{% endif %}</span>
+                    <span class="biz-name name-hint" data-tip="{{ s.email }}">{{ s.tenant.name|default:s.email }}</span>
+                  </div>
+                </td>
                 <td style="text-align:right;"><strong>${{ s.revenue|default_if_none:"0.00" }}</strong></td>
               </tr>
             {% endfor %}
@@ -311,39 +320,6 @@
       {% endif %}
     </td>
   </tr></table>
-
-  <div class="seg-title">Recent Activity</div>
-  <div class="card" style="margin-bottom:0;">
-    <div class="card-header">
-      <h2>Recent orders</h2>
-      <a href="{% url 'orders' %}" class="btn btn-secondary btn-sm">View all</a>
-    </div>
-    {% if recent_orders %}
-      <div class="activity-feed">
-        {% for o in recent_orders %}
-          <a href="{% url 'order_detail' o.id %}" class="activity-item status-{{ o.status }}">
-            <span class="activity-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4 7.5 4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
-            </span>
-            <div class="activity-main">
-              <div class="activity-top">
-                <span class="activity-company">{{ o.tenant.name|default:o.buyer.tenant.name|default:o.buyer.email }}</span>
-                <span class="pill {{ o.status }}">{{ o.get_status_display }}</span>
-              </div>
-              <div class="activity-sub">
-                <span class="activity-id">#{{ o.id|stringformat:"s"|slice:":8" }}</span>
-                <span class="activity-meta">{{ o.buyer.email }}</span>
-                {% with si=o.items.all.0 %}{% if si %}<span class="activity-meta">· Seller: {{ si.seller.tenant.name|default:si.seller.email }}</span>{% endif %}{% endwith %}
-              </div>
-            </div>
-            <div class="activity-amount">${{ o.total_amount }}</div>
-          </a>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="empty" style="padding:20px;"><h3>No orders yet</h3></div>
-    {% endif %}
-  </div>
 
   {# ── Admin charts ── #}
   {% load static %}

@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "notifications",
     "webhooks",
     "contracts",
+    "commissions",
 ]
 
 MIDDLEWARE = [

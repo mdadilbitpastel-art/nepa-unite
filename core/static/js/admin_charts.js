@@ -44,10 +44,19 @@
       options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: t.grid }, ticks: { stepSize: 1 } }, x: { grid: { display: false } } }, plugins: { tooltip: { callbacks: { label: function(c){ return c.parsed.y + ' orders'; } } } } }
     }));
 
-    var statusColors = [colors.indigo, colors.amber, colors.emerald, colors.rose, colors.cyan, colors.violet, colors.pink];
+    // Match the order-status badge colors used across the app (see base.html
+    // .pill.<status>). Mapped by label so each slice keeps its own color
+    // regardless of which statuses are present.
+    var orderStatusPalette = {
+      draft: '#64748b', confirmed: '#2563eb', fulfillment: '#ca8a04',
+      shipped: '#7c3aed', delivered: '#16a34a', closed: '#0d9488', cancelled: '#991b1b'
+    };
+    var statusColors = (d.orderStatusLabels || []).map(function (lbl) {
+      return orderStatusPalette[String(lbl).toLowerCase()] || colors.indigo;
+    });
     charts.push(new Chart(document.getElementById('adminOrderStatusChart'), {
       type: 'doughnut',
-      data: { labels: d.orderStatusLabels, datasets: [{ data: d.orderStatusData, backgroundColor: statusColors.slice(0, d.orderStatusLabels.length), borderWidth: 0 }] },
+      data: { labels: d.orderStatusLabels, datasets: [{ data: d.orderStatusData, backgroundColor: statusColors, borderWidth: 0 }] },
       options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { display: true, position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyle: 'circle', color: t.text } } } }
     }));
 
