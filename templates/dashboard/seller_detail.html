@@ -28,7 +28,7 @@
         <form method="post" action="{% url 'admin_approve_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-success btn-sm">Approve</button></form>
         <form method="post" action="{% url 'admin_suspend_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-danger btn-sm">Reject</button></form>
       {% elif member.status == 'active' and member.id != user.id %}
-        <form method="post" action="{% url 'admin_suspend_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-danger btn-sm">Suspend</button></form>
+        <form method="post" action="{% url 'admin_suspend_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-warning btn-sm">Suspend</button></form>
       {% elif member.status == 'suspended' %}
         <form method="post" action="{% url 'admin_approve_user' member.id %}"><input type="hidden" name="next" value="{% url 'admin_seller_detail' member.id %}">{% csrf_token %}<button class="btn btn-primary btn-sm">Reactivate</button></form>
       {% endif %}

@@ -131,6 +131,14 @@
   @media (max-width:420px) {
     .admin-keymetrics { grid-template-columns:1fr; }
   }
+  /* Action buttons: same size/style as the Sellers/Buyers rows. */
+  .row-actions { display:flex; justify-content:flex-end; align-items:center; gap:6px; }
+  .row-actions form { display:inline-flex; margin:0; }
+  .row-actions .btn {
+    height:28px; padding:0 12px; min-width:0;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:12px; line-height:1;
+  }
 </style>
 {% if role == "seller" %}
 
@@ -282,9 +290,9 @@
                     </div>
                   </td>
                   <td style="text-align:right;white-space:nowrap;">
-                    <div class="row" style="justify-content:flex-end;gap:6px;">
-                      <form method="post" action="{% url 'admin_approve_user' m.id %}" style="display:inline;">{% csrf_token %}<button type="submit" class="btn btn-success btn-sm">Approve</button></form>
-                      <form method="post" action="{% url 'admin_suspend_user' m.id %}" style="display:inline;">{% csrf_token %}<button type="submit" class="btn btn-danger btn-sm">Reject</button></form>
+                    <div class="row-actions">
+                      <form method="post" action="{% url 'admin_approve_user' m.id %}">{% csrf_token %}<button type="submit" class="btn btn-success btn-sm">Approve</button></form>
+                      <form method="post" action="{% url 'admin_suspend_user' m.id %}">{% csrf_token %}<button type="submit" class="btn btn-danger btn-sm">Reject</button></form>
                     </div>
                   </td>
                 </tr>
