@@ -28,6 +28,12 @@ class Product(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    # Maximum retail / reference price. When set and greater than `price`,
+    # the storefront renders a struck-through MRP plus a discount badge
+    # (Flipkart/Amazon style). Optional — null means "no reference price".
+    mrp = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
     attributes = models.JSONField(default=dict, blank=True)
     inventory_count = models.IntegerField(default=0)
     min_order_qty = models.PositiveIntegerField(default=1)

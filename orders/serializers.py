@@ -55,6 +55,9 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name", read_only=True)
     product_sku = serializers.CharField(source="product.sku", read_only=True)
+    product_min_order_qty = serializers.IntegerField(
+        source="product.min_order_qty", read_only=True
+    )
     unit_price = serializers.DecimalField(
         source="product.price", read_only=True, max_digits=10, decimal_places=2
     )
@@ -65,12 +68,12 @@ class CartItemSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = (
             "id", "product", "product_name", "product_sku",
-            "product_image_url", "quantity", "unit_price", "line_total",
-            "updated_at",
+            "product_min_order_qty", "product_image_url", "quantity",
+            "unit_price", "line_total", "updated_at",
         )
         read_only_fields = (
-            "id", "product_name", "product_sku", "product_image_url",
-            "unit_price", "line_total", "updated_at",
+            "id", "product_name", "product_sku", "product_min_order_qty",
+            "product_image_url", "unit_price", "line_total", "updated_at",
         )
 
     def get_line_total(self, obj) -> str:

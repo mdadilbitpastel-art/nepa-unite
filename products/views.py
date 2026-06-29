@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from django.db.models import Avg, Count
 
 from core.models import Job
+from products.categories import INDUSTRY_CATEGORIES
 from products.models import Product, ProductReview, WishlistItem
 from products.serializers import (
     BulkUploadSerializer,
@@ -34,7 +35,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     """All product operations.
 
     - create/update/partial_update/destroy: seller-only, owner-only
-    - retrieve: any authenticated role; buyers get contract pricing
+    - retrieve: public; authenticated buyers additionally get contract pricing
     - bulk_upload: seller-only, returns a job_id
     - search: public
     """
@@ -43,8 +44,18 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
+    def get_queryset(self):
+        # Annotate aggregate rating so list/retrieve responses can expose
+        # rating_avg / review_count without a per-object query (N+1).
+        return Product.objects.annotate(
+            _rating_avg=Avg("reviews__rating"),
+            _review_count=Count("reviews", distinct=True),
+        )
+
     def get_permissions(self):
-        if self.action in ("search", "categories", "by_seller"):
+        if self.action in ("search", "categories", "brands", "by_seller", "retrieve"):
+            # Public storefront: anyone may browse a product detail page.
+            # retrieve() already guards contract pricing behind is_authenticated.
             return [AllowAny()]
         if self.action == "reviews":
             # GET is public; POST requires an authed buyer (enforced inside).
@@ -214,7 +225,43 @@ class ProductViewSet(viewsets.ModelViewSet):
             if not c:
                 continue
             counts[c] = counts.get(c, 0) + 1
-        items = [{"name": name, "product_count": n} for name, n in sorted(counts.items())]
+
+        # Full predefined catalog from products/categories.py, plus any ad-hoc
+        # categories that exist on products but aren't in the predefined list.
+        names: set[str] = set(counts)
+        for cats in INDUSTRY_CATEGORIES.values():
+            names.update(cats)
+
+        items = []
+        for name in sorted(names):
+            item: dict = {"name": name}
+            if counts.get(name):
+                item["product_count"] = counts[name]
+            items.append(item)
+        return Response({"items": items})
+
+    # ------------------------------------------------------------------
+    # GET /api/v1/products/brands  (public)
+    # Distinct brands derived from products.attributes->>'brand'.
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny],
+            authentication_classes=[])
+    def brands(self, request):
+        rows = (
+            Product.objects.filter(status=Product.Status.ACTIVE)
+            .exclude(attributes__brand__isnull=True)
+            .exclude(attributes__brand="")
+            .values_list("attributes__brand", flat=True)
+        )
+        counts: dict[str, int] = {}
+        for b in rows:
+            if not b:
+                continue
+            counts[b] = counts.get(b, 0) + 1
+        items = [
+            {"name": name, "product_count": counts[name]}
+            for name in sorted(counts)
+        ]
         return Response({"items": items})
 
     # ------------------------------------------------------------------

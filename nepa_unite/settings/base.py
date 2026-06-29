@@ -88,9 +88,8 @@ LOGOUT_REDIRECT_URL = "/login/"
 
 # Auto sign-out session (dashboard) users after this many seconds of inactivity.
 # Sliding window — each request resets it. Enforced by
-# core.middleware.InactivityLogoutMiddleware. Default: 15 minutes, aligned with
-# the PCI-DSS idle-timeout standard (this app handles payments).
-SESSION_INACTIVITY_TIMEOUT = env.int("SESSION_INACTIVITY_TIMEOUT", default=900)
+# core.middleware.InactivityLogoutMiddleware. Default: 24 hours.
+SESSION_INACTIVITY_TIMEOUT = env.int("SESSION_INACTIVITY_TIMEOUT", default=86400)
 
 WSGI_APPLICATION = "nepa_unite.wsgi.application"
 ASGI_APPLICATION = "nepa_unite.asgi.application"
