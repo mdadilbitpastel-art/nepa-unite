@@ -57,8 +57,41 @@ class PaymentIntentView(APIView):
         order = get_object_or_404(Order, pk=serializer.validated_data["order_id"])
         if order.buyer_id != request.user.pk:
             raise PermissionDenied("You can only pay for your own orders.")
-        result = stripe_service.create_payment_intent(str(order.pk))
+        # Idempotent: re-loading the checkout page reuses the open PaymentIntent
+        # instead of spawning a fresh one (and a fresh pending Payment) each time.
+        result = stripe_service.get_or_create_payment_intent(str(order.pk))
         return Response(result, status=status.HTTP_201_CREATED)
+
+
+class PaymentSyncView(APIView):
+    """POST /api/v1/payments/{order_id}/sync — reconcile a payment with Stripe.
+
+    Pulls the authoritative PaymentIntent status straight from Stripe and, on
+    success, flips the Payment to COMPLETED and the Order to CONFIRMED. This is
+    what makes buyer checkout work in environments with no Stripe webhook (e.g.
+    local test mode): the frontend calls it right after `confirmPayment`.
+    Webhook handling stays the source of truth in production; both are idempotent.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        order = get_object_or_404(Order, pk=order_id)
+        if (
+            request.user.role == CustomUser.Role.BUYER
+            and order.buyer_id != request.user.pk
+        ):
+            raise PermissionDenied("You can only sync your own orders.")
+        if request.user.role == CustomUser.Role.SELLER:
+            raise PermissionDenied()
+        intent_status = stripe_service.sync_payment_status(str(order.pk))
+        order.refresh_from_db()
+        return Response(
+            {
+                "payment_intent_status": intent_status,
+                "order_status": order.status,
+            }
+        )
 
 
 class DisburseView(APIView):

@@ -145,15 +145,20 @@ _REUSABLE_INTENT_STATUSES = {
 }
 
 
+@transaction.atomic
 def get_or_create_payment_intent(order_id: str) -> dict[str, Any]:
     """Return a client_secret for the order, reusing an open PaymentIntent.
 
     Used by the buyer checkout page so that re-loading the page does not spawn a
     fresh PaymentIntent (and a fresh pending Payment row) every time. Falls back
     to `create_payment_intent` when there is no reusable intent yet.
+
+    Locks the order row for the whole check-and-create so two near-simultaneous
+    requests (e.g. a double-mounted checkout form) can't each create a separate
+    PaymentIntent — the second waits, then reuses the first's pending intent.
     """
     _configure()
-    order = Order.objects.get(pk=order_id)
+    order = Order.objects.select_for_update().get(pk=order_id)
     pending = (
         order.payments.filter(status=Payment.Status.PENDING)
         .exclude(stripe_payment_intent_id="")
@@ -175,40 +180,75 @@ def get_or_create_payment_intent(order_id: str) -> dict[str, Any]:
 
 @transaction.atomic
 def sync_payment_status(order_id: str) -> str | None:
-    """Reconcile a Payment/Order with Stripe by retrieving the PaymentIntent.
+    """Reconcile an Order with Stripe by retrieving its PaymentIntent(s).
 
-    Returns the Stripe PaymentIntent status (or None when the order has no
-    intent yet). This makes the buyer checkout flow work in environments where
-    no Stripe webhook is configured (e.g. local test mode): on the post-payment
-    redirect we pull the authoritative status straight from Stripe rather than
-    waiting on `payment_intent.succeeded`. Webhook handling stays the source of
-    truth in production; both paths are idempotent.
+    Returns a representative Stripe PaymentIntent status ("succeeded" wins),
+    or None when the order has no intent yet. This makes the buyer checkout
+    flow work in environments where no Stripe webhook is configured (e.g. local
+    test mode): on the post-payment redirect we pull the authoritative status
+    straight from Stripe rather than waiting on `payment_intent.succeeded`.
+    Webhook handling stays the source of truth in production; both paths are
+    idempotent.
+
+    We check *every* intent attached to the order (its primary intent plus any
+    per-Payment intents), not just `order.stripe_payment_intent_id`. If a
+    duplicate intent was ever created (e.g. a race on the checkout form), the
+    buyer may have paid one while the order recorded another — reconciling all
+    of them means the order still confirms against whichever actually succeeded.
     """
     _configure()
     order = Order.objects.select_for_update().get(pk=order_id)
-    if not order.stripe_payment_intent_id:
+
+    # Collect distinct candidate intent ids: each Payment's, plus the order's.
+    intent_ids: list[str] = []
+    payments_by_intent: dict[str, Payment] = {}
+    for payment in order.payments.exclude(stripe_payment_intent_id=""):
+        payments_by_intent.setdefault(payment.stripe_payment_intent_id, payment)
+        if payment.stripe_payment_intent_id not in intent_ids:
+            intent_ids.append(payment.stripe_payment_intent_id)
+    if order.stripe_payment_intent_id and order.stripe_payment_intent_id not in intent_ids:
+        intent_ids.append(order.stripe_payment_intent_id)
+
+    if not intent_ids:
         return None
 
-    intent = stripe.PaymentIntent.retrieve(order.stripe_payment_intent_id)
-    payment = Payment.objects.filter(stripe_payment_intent_id=intent.id).first()
-    if payment is None:
-        return intent.status
+    succeeded = False
+    last_status: str | None = None
+    for intent_id in intent_ids:
+        try:
+            intent = stripe.PaymentIntent.retrieve(intent_id)
+        except stripe.error.StripeError:
+            continue
+        last_status = intent.status
+        payment = payments_by_intent.get(intent.id)
 
-    if intent.status == "succeeded":
-        if payment.status != Payment.Status.COMPLETED:
-            payment.status = Payment.Status.COMPLETED
+        if intent.status == "succeeded":
+            succeeded = True
+            if payment is not None and payment.status != Payment.Status.COMPLETED:
+                payment.status = Payment.Status.COMPLETED
+                payment.save(update_fields=["status"])
+            # Point the order at the intent that actually paid.
+            if order.stripe_payment_intent_id != intent.id:
+                order.stripe_payment_intent_id = intent.id
+                order.save(update_fields=["stripe_payment_intent_id", "updated_at"])
+        elif (
+            intent.status == "canceled"
+            and payment is not None
+            and payment.status == Payment.Status.PENDING
+        ):
+            payment.status = Payment.Status.FAILED
             payment.save(update_fields=["status"])
+
+    if succeeded:
         if order.status == Order.Status.DRAFT:
             order.status = Order.Status.CONFIRMED
             order.save(update_fields=["status", "updated_at"])
         # Book the admin's commission (idempotent — mirrors the webhook path).
         from commissions.services import accrue_for_order
         accrue_for_order(order)
-    elif intent.status == "canceled" and payment.status == Payment.Status.PENDING:
-        payment.status = Payment.Status.FAILED
-        payment.save(update_fields=["status"])
+        return "succeeded"
 
-    return intent.status
+    return last_status
 
 
 # ---------------------------------------------------------------------------

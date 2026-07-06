@@ -109,7 +109,11 @@ def search_products(
                 s = s.query(MultiMatch(query=q, fields=["name^3", "description"],
                                        fuzziness="AUTO"))
             if category:
-                s = s.filter(Term(category=category))
+                cats = [c.strip() for c in category.split(",") if c.strip()]
+                if len(cats) == 1:
+                    s = s.filter(Term(category=cats[0]))
+                elif cats:
+                    s = s.filter("terms", category=cats)
             if region:
                 s = s.filter(Term(region=region))
             if contract_status:
@@ -191,7 +195,11 @@ def _pg_fallback_search(
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(description__icontains=q))
     if category:
-        qs = qs.filter(attributes__category=category)
+        cats = [c.strip() for c in category.split(",") if c.strip()]
+        if len(cats) == 1:
+            qs = qs.filter(attributes__category=cats[0])
+        elif cats:
+            qs = qs.filter(attributes__category__in=cats)
     if region:
         qs = qs.filter(attributes__region=region)
     if brand:

@@ -81,6 +81,85 @@ def test_seller_cannot_create_intent(db, force_login, seller_user, order):
     assert response.status_code == 403
 
 
+def test_intent_endpoint_reuses_open_intent(db, force_login, buyer_user, order):
+    """Re-POSTing /payments/intent reuses the open intent (no duplicate rows)."""
+    Payment.objects.create(
+        order=order, stripe_payment_intent_id="pi_open",
+        amount=Decimal("100"), platform_fee=Decimal("5"),
+        status=Payment.Status.PENDING,
+    )
+    client = force_login(buyer_user)
+    reusable = SimpleNamespace(
+        id="pi_open", client_secret="cs_open", status="requires_payment_method"
+    )
+    with patch("payments.stripe_service.stripe.PaymentIntent.retrieve",
+               return_value=reusable), \
+         patch("payments.stripe_service.stripe.PaymentIntent.create") as create:
+        response = client.post(
+            "/api/v1/payments/intent", {"order_id": str(order.pk)}, format="json"
+        )
+    assert response.status_code == 201, response.content
+    assert response.json()["client_secret"] == "cs_open"
+    create.assert_not_called()
+    assert order.payments.count() == 1
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/payments/{order_id}/sync  (webhook-free reconciliation)
+# ---------------------------------------------------------------------------
+def test_buyer_syncs_and_confirms_order(db, force_login, buyer_user, order):
+    order.stripe_payment_intent_id = "pi_sync"
+    order.save(update_fields=["stripe_payment_intent_id"])
+    Payment.objects.create(
+        order=order, stripe_payment_intent_id="pi_sync",
+        amount=Decimal("100"), platform_fee=Decimal("5"),
+        status=Payment.Status.PENDING,
+    )
+    client = force_login(buyer_user)
+    succeeded = SimpleNamespace(id="pi_sync", status="succeeded")
+    with patch("payments.stripe_service.stripe.PaymentIntent.retrieve",
+               return_value=succeeded):
+        response = client.post(f"/api/v1/payments/{order.pk}/sync", {}, format="json")
+    assert response.status_code == 200, response.content
+    body = response.json()
+    assert body["payment_intent_status"] == "succeeded"
+    assert body["order_status"] == Order.Status.CONFIRMED
+    order.refresh_from_db()
+    assert order.status == Order.Status.CONFIRMED
+
+
+def test_sync_returns_null_status_without_intent(db, force_login, buyer_user, order):
+    client = force_login(buyer_user)
+    response = client.post(f"/api/v1/payments/{order.pk}/sync", {}, format="json")
+    assert response.status_code == 200, response.content
+    assert response.json()["payment_intent_status"] is None
+
+
+def test_buyer_cannot_sync_other_buyers_order(
+    db, force_login, buyer_user, order, tenant
+):
+    from users.models import CustomUser
+    other = CustomUser.objects.create(
+        email="sync-other@example.com", auth0_sub="auth0|sync-other",
+        role=CustomUser.Role.BUYER, tenant=tenant,
+        status=CustomUser.Status.ACTIVE,
+    )
+    client = force_login(other)
+    response = client.post(f"/api/v1/payments/{order.pk}/sync", {}, format="json")
+    assert response.status_code == 403
+
+
+def test_seller_cannot_sync_order(db, force_login, seller_user, order):
+    client = force_login(seller_user)
+    response = client.post(f"/api/v1/payments/{order.pk}/sync", {}, format="json")
+    assert response.status_code == 403
+
+
+def test_sync_requires_auth(db, api_client, order):
+    response = api_client.post(f"/api/v1/payments/{order.pk}/sync", {}, format="json")
+    assert response.status_code in (401, 403)
+
+
 # ---------------------------------------------------------------------------
 # POST /api/v1/payments/disburse  (admin only)
 # ---------------------------------------------------------------------------
@@ -265,6 +344,44 @@ def test_sync_marks_completed_and_confirms_order(db, order):
 def test_sync_without_intent_returns_none(db, order):
     from payments import stripe_service
     assert stripe_service.sync_payment_status(str(order.pk)) is None
+
+
+def test_sync_confirms_against_paid_duplicate_intent(db, order):
+    """Regression: a duplicate intent was created and the order recorded the
+    *unpaid* one, but the buyer paid the other. Sync must reconcile all of the
+    order's intents, confirm the order, and repoint it at the paid intent."""
+    from payments import stripe_service
+
+    # Order points at the unpaid duplicate.
+    order.stripe_payment_intent_id = "pi_unpaid"
+    order.save(update_fields=["stripe_payment_intent_id"])
+    paid = Payment.objects.create(
+        order=order, stripe_payment_intent_id="pi_paid",
+        amount=Decimal("100"), platform_fee=Decimal("5"),
+        status=Payment.Status.PENDING,
+    )
+    unpaid = Payment.objects.create(
+        order=order, stripe_payment_intent_id="pi_unpaid",
+        amount=Decimal("100"), platform_fee=Decimal("5"),
+        status=Payment.Status.PENDING,
+    )
+
+    def fake_retrieve(pid):
+        status = "succeeded" if pid == "pi_paid" else "requires_payment_method"
+        return SimpleNamespace(id=pid, status=status)
+
+    with patch("payments.stripe_service.stripe.PaymentIntent.retrieve",
+               side_effect=fake_retrieve):
+        result = stripe_service.sync_payment_status(str(order.pk))
+
+    assert result == "succeeded"
+    order.refresh_from_db()
+    paid.refresh_from_db()
+    unpaid.refresh_from_db()
+    assert order.status == Order.Status.CONFIRMED
+    assert order.stripe_payment_intent_id == "pi_paid"
+    assert paid.status == Payment.Status.COMPLETED
+    assert unpaid.status == Payment.Status.PENDING
 
 
 # ---------------------------------------------------------------------------

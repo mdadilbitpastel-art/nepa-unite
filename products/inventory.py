@@ -10,6 +10,7 @@ has the inventory_count >= 0 CHECK constraint as the ultimate guarantee.
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 
@@ -21,6 +22,8 @@ from django_redis import get_redis_connection
 from core.dispatch import safe_dispatch
 from products.models import Product
 from products.tasks import low_stock_alert
+
+logger = logging.getLogger(__name__)
 
 
 class InsufficientInventoryError(Exception):
@@ -48,6 +51,28 @@ def _redis_enabled() -> bool:
     return bool(getattr(settings, "REDIS_URL", ""))
 
 
+def _redis_client():
+    """Return a Redis client for the distributed lock, or None to skip locking.
+
+    Locking is best-effort: it needs REDIS_URL *and* a django-redis `default`
+    cache backend. In dev / single-service mode the default cache is often
+    DummyCache or LocMemCache, where `get_redis_connection` raises
+    NotImplementedError — and a genuine Redis outage raises a connection error.
+    In either case we fall back to the DB row lock (select_for_update) plus the
+    `inventory_count >= 0` CHECK constraint, which is correct for a single worker.
+    """
+    if not _redis_enabled():
+        return None
+    try:
+        return get_redis_connection("default")
+    except Exception as exc:  # noqa: BLE001 - degrade gracefully, never block orders
+        logger.warning(
+            "Redis inventory lock unavailable (%s); falling back to DB row lock.",
+            exc,
+        )
+        return None
+
+
 def _lock_key(product_id: str) -> str:
     return f"lock:inventory:{product_id}"
 
@@ -55,13 +80,13 @@ def _lock_key(product_id: str) -> str:
 def _acquire(product_id: str, ttl: int, wait_seconds: float = 2.0) -> str | None:
     """Acquire a redis lock; returns a token to use on release, or None on timeout.
 
-    When Redis isn't configured (no REDIS_URL), skip the distributed lock and
-    return a sentinel — the surrounding transaction's select_for_update still
-    serialises concurrent decrements on a single worker.
+    When Redis isn't available, skip the distributed lock and return a sentinel
+    — the surrounding transaction's select_for_update still serialises
+    concurrent decrements on a single worker.
     """
-    if not _redis_enabled():
+    client = _redis_client()
+    if client is None:
         return _NO_LOCK
-    client = get_redis_connection("default")
     token = uuid.uuid4().hex
     deadline = time.time() + wait_seconds
     while time.time() < deadline:
@@ -73,9 +98,11 @@ def _acquire(product_id: str, ttl: int, wait_seconds: float = 2.0) -> str | None
 
 def _release(product_id: str, token: str) -> None:
     """Release only if we still own the lock (Lua-equivalent guard)."""
-    if token == _NO_LOCK or not _redis_enabled():
+    if token == _NO_LOCK:
         return
-    client = get_redis_connection("default")
+    client = _redis_client()
+    if client is None:
+        return
     lua = (
         "if redis.call('get', KEYS[1]) == ARGV[1] then "
         "return redis.call('del', KEYS[1]) else return 0 end"
