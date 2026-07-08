@@ -321,3 +321,47 @@ def process_refund(order_id: str) -> None:
 
     order.status = Order.Status.CANCELLED
     order.save(update_fields=["status", "updated_at"])
+
+
+def create_return_refund(return_request) -> str:
+    """Partially refund the paying intent for a single approved return.
+
+    Unlike `process_refund` (which refunds the whole intent and cancels the
+    order), this refunds only `return_request.refund_amount` and leaves the
+    order intact — other items on the same order are unaffected.
+
+    Returns the Stripe refund id, or "" when the order has no online payment
+    (e.g. a dev/guest order with no PaymentIntent) so the return workflow can
+    still complete as a manual/offline refund.
+    """
+    from decimal import Decimal
+
+    order = return_request.order
+    payment = (
+        order.payments.filter(status=Payment.Status.COMPLETED)
+        .order_by("-created_at")
+        .first()
+    )
+    intent_id = getattr(payment, "stripe_payment_intent_id", "") if payment else ""
+    if not intent_id:
+        logger.info(
+            "Return %s: no online payment intent — treating as manual refund",
+            return_request.pk,
+        )
+        return ""
+
+    _configure()
+    amount = Decimal(return_request.refund_amount or 0)
+    amount_cents = int((amount * 100).to_integral_value())
+    if amount_cents <= 0:
+        return ""
+
+    refund = stripe.Refund.create(
+        payment_intent=intent_id,
+        amount=amount_cents,
+        metadata={
+            "return_id": str(return_request.pk),
+            "order_id": str(order.pk),
+        },
+    )
+    return getattr(refund, "id", "") or ""

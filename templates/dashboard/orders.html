@@ -189,7 +189,13 @@
             <td><a href="{% url 'order_detail' o.id %}" class="order-ref" data-tip="{{ o.id }}">#{{ o.id|stringformat:"s"|slice:":8" }}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg></a></td>
             {% if role != 'buyer' %}<td><span class="name-hint" data-tip="{{ o.buyer.email }}">{{ o.buyer.tenant.name|default:o.buyer.email }}</span></td>{% endif %}
             {% if role == 'admin' or role == 'auditor' %}<td>{% if o.seller_contacts %}{% for sc in o.seller_contacts %}<span class="name-hint" data-tip="{{ sc.email }}">{{ sc.name }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}—{% endif %}</td>{% endif %}
-            <td><span class="pill {{ o.status }}">{{ o.get_status_display|default:o.status }}</span></td>
+            <td>
+              {% if o.effective_status.kind != 'order' %}
+                <span class="pill {{ o.effective_status.code }}" data-tip="Order was delivered">{% if o.effective_status.kind == 'exchange' %}⇄{% else %}↩{% endif %} {{ o.effective_status.full_label }}</span>
+              {% else %}
+                <span class="pill {{ o.status }}">{{ o.get_status_display|default:o.status }}</span>
+              {% endif %}
+            </td>
             <td><strong>${{ o.total_amount }}</strong></td>
             <td>
               <span class="muted">{{ o.status_changed_at|timesince }} ago</span>

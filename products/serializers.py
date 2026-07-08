@@ -41,6 +41,8 @@ class ProductSerializer(RatingFieldsMixin, serializers.ModelSerializer):
         fields = (
             "id", "tenant", "seller", "sku", "name", "description",
             "price", "mrp", "attributes", "inventory_count", "min_order_qty",
+            "is_returnable", "return_window_days", "is_exchangeable",
+            "return_policy_note",
             "status", "primary_image_url", "rating_avg", "review_count",
             "created_at", "updated_at",
         )
@@ -116,6 +118,8 @@ class ProductDetailSerializer(RatingFieldsMixin, serializers.ModelSerializer):
     primary_image_url = serializers.SerializerMethodField()
     rating_avg = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
+    seller_name = serializers.SerializerMethodField()
+    seller_logo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -124,6 +128,9 @@ class ProductDetailSerializer(RatingFieldsMixin, serializers.ModelSerializer):
             "price", "mrp", "attributes", "inventory_count", "min_order_qty",
             "status", "primary_image_url", "images",
             "rating_avg", "review_count",
+            "seller_name", "seller_logo_url",
+            "is_returnable", "return_window_days", "is_exchangeable",
+            "return_policy_note",
             "created_at", "updated_at",
         )
 
@@ -133,6 +140,17 @@ class ProductDetailSerializer(RatingFieldsMixin, serializers.ModelSerializer):
         request = self.context.get("request")
         url = obj.primary_image.url
         return request.build_absolute_uri(url) if request else url
+
+    def get_seller_name(self, obj) -> str | None:
+        """Storefront/business name — the tenant the product belongs to."""
+        return obj.tenant.name if obj.tenant_id else None
+
+    def get_seller_logo_url(self, obj) -> str | None:
+        logo = obj.tenant.logo if obj.tenant_id else None
+        if not logo:
+            return None
+        request = self.context.get("request")
+        return request.build_absolute_uri(logo.url) if request else logo.url
 
 
 class BulkUploadSerializer(serializers.Serializer):

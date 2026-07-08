@@ -35,10 +35,22 @@ def product(db, seller_user, tenant):
     )
 
 
+# Shipping is required by OrderCreateSerializer / create_order, so every
+# create-order request in these tests carries a valid address.
+SHIPPING = {
+    "shipping_name": "Test Buyer",
+    "shipping_phone": "9999999999",
+    "shipping_address_line1": "1 Test St",
+    "shipping_city": "Testville",
+    "shipping_state": "TS",
+    "shipping_zip": "00000",
+}
+
+
 def _post_order(client, product_id, qty=2):
     return client.post(
         "/api/v1/orders/",
-        {"items": [{"product_id": str(product_id), "quantity": qty}]},
+        {"items": [{"product_id": str(product_id), "quantity": qty}], **SHIPPING},
         format="json",
     )
 
@@ -105,7 +117,7 @@ def test_order_create_releases_inventory_on_partial_failure(
         {"items": [
             {"product_id": str(product.pk), "quantity": 1},
             {"product_id": str(second.pk), "quantity": 1},
-        ]},
+        ], **SHIPPING},
         format="json",
     )
     assert response.status_code == 400

@@ -163,6 +163,17 @@ else:
 CELERY_TIMEZONE = "UTC"
 CELERY_TASK_TRACK_STARTED = True
 
+# Periodic jobs (run by `celery -A nepa_unite beat`). The return-window close
+# also runs lazily on order reads, so this is a safety net, not a hard dep.
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    "close-expired-return-windows": {
+        "task": "orders.tasks.close_expired_return_windows",
+        "schedule": crontab(hour=2, minute=0),  # daily at 02:00 UTC
+    },
+}
+
 # ---------------------------------------------------------------------------
 # DRF
 # ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ class Notification(models.Model):
         PAYMENT = "payment", "Payment"
         ACCOUNT = "account", "Account"
         SYSTEM = "system", "System"
+        RETURN = "return", "Return"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recipient = models.ForeignKey(

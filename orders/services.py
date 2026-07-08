@@ -157,7 +157,12 @@ def transition_order(*, order: Order, target_status: str, actor, note: str = "")
     previous = order.status
     order.status = target_status
     order.status_changed_at = timezone.now()
-    order.save(update_fields=["status", "status_changed_at", "updated_at"])
+    update_fields = ["status", "status_changed_at", "updated_at"]
+    # Stamp the delivery time once — anchors the per-item return window.
+    if target_status == Order.Status.DELIVERED and order.delivered_at is None:
+        order.delivered_at = timezone.now()
+        update_fields.append("delivered_at")
+    order.save(update_fields=update_fields)
 
     OrderActivityLog.objects.create(
         order=order,

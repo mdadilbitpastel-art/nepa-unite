@@ -8,7 +8,7 @@ from rest_framework.response import Response
 
 from django.shortcuts import get_object_or_404
 
-from orders.models import Cart, CartItem, Order
+from orders.models import Cart, CartItem, Order, OrderItem, ReturnRequest
 from orders.serializers import (
     CartAddSerializer,
     CartCheckoutSerializer,
@@ -18,12 +18,21 @@ from orders.serializers import (
     OrderCreateSerializer,
     OrderSerializer,
     OrderStatusUpdateSerializer,
+    ReturnCreateSerializer,
+    ReturnRequestSerializer,
+    ReturnStatusUpdateSerializer,
 )
 from orders.services import (
     OrderCreationError,
     create_order,
     transition_order,
 )
+from orders.returns_service import (
+    close_order_if_window_expired,
+    create_return,
+    transition_return,
+)
+from orders.returns_state import InvalidReturnTransitionError
 from orders.state import InvalidTransitionError
 from products.models import Product
 from users.models import BuyerAddress, CustomUser
@@ -36,7 +45,10 @@ class OrderViewSet(
     mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
-    queryset = Order.objects.all().prefetch_related("items")
+    queryset = Order.objects.all().prefetch_related(
+        "items", "items__product", "items__seller__tenant",
+        "items__returns", "returns",
+    )
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
 
@@ -91,10 +103,31 @@ class OrderViewSet(
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
     # ------------------------------------------------------------------
+    # GET /api/v1/orders  — sellers see only their own line items
+    # ------------------------------------------------------------------
+    def list(self, request, *args, **kwargs):
+        qs = self.filter_queryset(self.get_queryset())
+        data = OrderSerializer(
+            qs, many=True, context=self.get_serializer_context()
+        ).data
+        if request.user.role == CustomUser.Role.SELLER:
+            sid = str(request.user.pk)
+            for order in data:
+                order["items"] = [
+                    item for item in order["items"]
+                    if str(item["seller"]) == sid
+                ]
+        return Response(data)
+
+    # ------------------------------------------------------------------
     # GET /api/v1/orders/{id}
     # ------------------------------------------------------------------
     def retrieve(self, request, *args, **kwargs):
         order = self.get_object()
+        # Auto-close the order the first time it's viewed after the return
+        # window elapses, so the return/exchange option disappears on time.
+        if close_order_if_window_expired(order, actor=request.user):
+            order.refresh_from_db()
         data = OrderSerializer(order).data
         if request.user.role == CustomUser.Role.SELLER:
             data["items"] = [
@@ -244,3 +277,118 @@ class CartViewSet(viewsets.ViewSet):
             raise ValidationError(str(exc))
         cart.items.all().delete()
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
+
+
+class ReturnViewSet(
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.ListModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Buyer-raised returns/exchanges, seller-managed with admin override.
+
+    GET /api/v1/returns/            list (role-scoped)
+    POST /api/v1/returns/           buyer opens a return/exchange
+    GET /api/v1/returns/{id}/       detail + timeline events
+    PATCH /api/v1/returns/{id}/status  advance the lifecycle
+    """
+
+    queryset = (
+        ReturnRequest.objects.all()
+        .select_related(
+            "order", "order_item", "order_item__product", "buyer",
+            "seller", "seller__tenant",
+        )
+        .prefetch_related("events")
+    )
+    serializer_class = ReturnRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    # Target statuses each role is allowed to drive.
+    _SELLER_ACTIONS = {
+        ReturnRequest.Status.APPROVED,
+        ReturnRequest.Status.REJECTED,
+        ReturnRequest.Status.PICKUP_SCHEDULED,
+        ReturnRequest.Status.PICKED_UP,
+        ReturnRequest.Status.RECEIVED,
+        ReturnRequest.Status.REFUNDED,
+        ReturnRequest.Status.EXCHANGE_SHIPPED,
+        ReturnRequest.Status.EXCHANGE_COMPLETED,
+    }
+    _BUYER_ACTIONS = {ReturnRequest.Status.CANCELLED}
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.role == CustomUser.Role.ADMIN:
+            return qs
+        if user.role == CustomUser.Role.BUYER:
+            return qs.filter(buyer=user)
+        if user.role == CustomUser.Role.SELLER:
+            return qs.filter(seller=user)
+        return qs.none()
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [IsAuthenticated(), IsBuyer()]
+        return [IsAuthenticated()]
+
+    def create(self, request, *args, **kwargs):
+        ser = ReturnCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        item = get_object_or_404(OrderItem, pk=data["order_item"])
+        exchange_product = None
+        if data.get("exchange_product"):
+            exchange_product = get_object_or_404(
+                Product, pk=data["exchange_product"]
+            )
+        rr = create_return(
+            buyer=request.user,
+            order_item=item,
+            type=data["type"],
+            reason=data["reason"],
+            reason_note=data.get("reason_note", ""),
+            quantity=data.get("quantity", 1),
+            exchange_product=exchange_product,
+        )
+        out = ReturnRequestSerializer(rr, context={"request": request})
+        return Response(out.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["patch"], url_path="status")
+    def change_status(self, request, pk=None):
+        rr = self.get_object()  # role-scoped by get_queryset
+        ser = ReturnStatusUpdateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        target = ser.validated_data["status"]
+        self._authorize_transition(request.user, rr, target)
+        try:
+            rr = transition_return(
+                return_request=rr,
+                target_status=target,
+                actor=request.user,
+                note=ser.validated_data.get("note", ""),
+                pickup_scheduled_at=ser.validated_data.get("pickup_scheduled_at"),
+            )
+        except InvalidReturnTransitionError as exc:
+            raise ValidationError(str(exc))
+        out = ReturnRequestSerializer(rr, context={"request": request})
+        return Response(out.data)
+
+    def _authorize_transition(self, user, rr, target) -> None:
+        role = user.role
+        if role == CustomUser.Role.ADMIN:
+            return
+        if role == CustomUser.Role.SELLER:
+            if rr.seller_id != user.pk:
+                raise PermissionDenied("Not your return to manage.")
+            if target not in self._SELLER_ACTIONS:
+                raise PermissionDenied("Sellers cannot set that status.")
+            return
+        if role == CustomUser.Role.BUYER:
+            if rr.buyer_id != user.pk:
+                raise PermissionDenied("Not your return.")
+            if target not in self._BUYER_ACTIONS:
+                raise PermissionDenied("Buyers can only cancel a return.")
+            return
+        raise PermissionDenied("Not allowed.")

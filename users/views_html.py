@@ -1077,7 +1077,7 @@ def orders_view(request):
         if seller_obj:
             base_qs = base_qs.filter(items__seller=seller_obj).distinct()
 
-    orders_qs = base_qs.select_related("buyer", "buyer__tenant", "tenant").prefetch_related("items__product", "items__seller__tenant").order_by("-created_at")
+    orders_qs = base_qs.select_related("buyer", "buyer__tenant", "tenant").prefetch_related("items__product", "items__seller__tenant", "returns").order_by("-created_at")
 
     if status_filter in Order.Status.values:
         orders_qs = orders_qs.filter(status=status_filter)
@@ -1104,9 +1104,26 @@ def orders_view(request):
             .order_by("email")
         )
 
+    # Flag orders that have a pending (buyer-raised, not-yet-actioned) return so
+    # the list can badge them. Sellers only count their own items' returns.
+    from django.db.models import Count, Q as _Q
+    from orders.models import ReturnRequest as _RR
+
+    _ret_filter = _Q(returns__status=_RR.Status.REQUESTED)
+    if user.role == CustomUser.Role.SELLER:
+        _ret_filter &= _Q(returns__seller=user)
+    orders_qs = orders_qs.annotate(
+        pending_returns=Count("returns", filter=_ret_filter, distinct=True)
+    )
+
+    from orders.returns_service import order_effective_status
+
     page = _paginate(request, orders_qs)
     overdue_cutoff = timezone.now() - datetime.timedelta(hours=48)
     for o in page.object_list:
+        # Row badge: the order's own status, or — once delivered/closed with a
+        # return/exchange in flight — that request's status (pickup, refund, …).
+        o.effective_status = order_effective_status(o)
         o.is_overdue = (
             o.status in (Order.Status.CONFIRMED, Order.Status.FULFILLMENT)
             and o.status_changed_at
@@ -1594,6 +1611,55 @@ def order_detail_view(request, order_id):
     order_gross = order.total_amount or Decimal("0.00")
     order_net = order_gross - order_commission
 
+    # Return / exchange requests on this order, scoped to the viewer, each with
+    # the next actions this role may drive (Flipkart/Amazon-style seller panel).
+    from orders.models import ReturnRequest
+    from orders.returns_state import RETURN_TRANSITIONS
+
+    _RET = ReturnRequest.Status
+    _SELLER_RET_ACTIONS = {
+        _RET.APPROVED, _RET.REJECTED, _RET.PICKUP_SCHEDULED, _RET.PICKED_UP,
+        _RET.RECEIVED, _RET.REFUNDED, _RET.EXCHANGE_SHIPPED,
+        _RET.EXCHANGE_COMPLETED,
+    }
+    _BUYER_RET_ACTIONS = {_RET.CANCELLED}
+    _RET_ACTION_LABEL = {
+        _RET.APPROVED: "Approve", _RET.REJECTED: "Reject",
+        _RET.CANCELLED: "Cancel", _RET.PICKUP_SCHEDULED: "Schedule pickup",
+        _RET.PICKED_UP: "Mark picked up", _RET.RECEIVED: "Mark received",
+        _RET.REFUNDED: "Issue refund", _RET.EXCHANGE_SHIPPED: "Ship replacement",
+        _RET.EXCHANGE_COMPLETED: "Mark completed",
+    }
+
+    returns_qs = order.returns.select_related(
+        "order_item__product", "buyer", "seller"
+    ).order_by("-created_at")
+    if user.role == CustomUser.Role.SELLER:
+        returns_qs = returns_qs.filter(seller=user)
+
+    returns = []
+    for r in returns_qs:
+        nexts = set(RETURN_TRANSITIONS.get(r.status, set()))
+        if r.type == ReturnRequest.Type.RETURN:
+            nexts -= {_RET.EXCHANGE_SHIPPED, _RET.EXCHANGE_COMPLETED}
+        else:
+            nexts -= {_RET.REFUNDED}
+        if user.role == CustomUser.Role.ADMIN:
+            allowed = nexts
+        elif user.role == CustomUser.Role.SELLER:
+            allowed = nexts & _SELLER_RET_ACTIONS
+        elif user.role == CustomUser.Role.BUYER and r.buyer_id == user.id:
+            allowed = nexts & _BUYER_RET_ACTIONS
+        else:
+            allowed = set()
+        returns.append({
+            "obj": r,
+            "actions": [
+                {"status": s, "label": _RET_ACTION_LABEL.get(s, s)}
+                for s in sorted(allowed)
+            ],
+        })
+
     ctx = {
         "user": user,
         "role": user.role,
@@ -1611,6 +1677,7 @@ def order_detail_view(request, order_id):
         "order_commission": order_commission,
         "order_net": order_net,
         "commission_booked": commission_booked,
+        "returns": returns,
     }
     return render(request, "dashboard/order_detail.html", ctx)
 
@@ -1647,6 +1714,57 @@ def order_transition_view(request, order_id):
         messages.error(request, f"Cannot transition from {order.status} to {target}.")
     except Exception as exc:
         messages.error(request, f"Transition failed: {exc}")
+
+    return redirect("order_detail", order_id=order_id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def return_transition_view(request, order_id, return_id):
+    """Seller/admin (or buyer-cancel) advances a return from the order page."""
+    from orders.models import ReturnRequest
+
+    user = request.user
+    rr = get_object_or_404(
+        ReturnRequest.objects.select_related("order", "seller", "buyer"),
+        pk=return_id, order_id=order_id,
+    )
+
+    _RET = ReturnRequest.Status
+    seller_actions = {
+        _RET.APPROVED, _RET.REJECTED, _RET.PICKUP_SCHEDULED, _RET.PICKED_UP,
+        _RET.RECEIVED, _RET.REFUNDED, _RET.EXCHANGE_SHIPPED,
+        _RET.EXCHANGE_COMPLETED,
+    }
+    buyer_actions = {_RET.CANCELLED}
+    target = request.POST.get("status", "").strip()
+    note = request.POST.get("note", "").strip()
+
+    role = user.role
+    if role == CustomUser.Role.ADMIN:
+        ok = True
+    elif role == CustomUser.Role.SELLER:
+        ok = rr.seller_id == user.id and target in seller_actions
+    elif role == CustomUser.Role.BUYER:
+        ok = rr.buyer_id == user.id and target in buyer_actions
+    else:
+        ok = False
+    if not ok:
+        messages.error(request, "You cannot perform that return action.")
+        return redirect("order_detail", order_id=order_id)
+
+    from orders.returns_service import transition_return
+    from orders.returns_state import InvalidReturnTransitionError
+
+    try:
+        rr = transition_return(
+            return_request=rr, target_status=target, actor=user, note=note
+        )
+        messages.success(request, f"Return updated to {rr.get_status_display()}.")
+    except InvalidReturnTransitionError:
+        messages.error(request, "Invalid return transition.")
+    except Exception as exc:
+        messages.error(request, f"Return update failed: {exc}")
 
     return redirect("order_detail", order_id=order_id)
 

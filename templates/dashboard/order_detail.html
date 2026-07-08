@@ -260,6 +260,41 @@
   {% endif %}
 </div>
 
+{% if returns %}
+<div class="od-info-card" style="margin-bottom:var(--space-3);border:1px solid var(--warning,#e0a800);">
+  <div class="od-info-title">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
+    Returns &amp; Exchanges ({{ returns|length }})
+  </div>
+  {% for r in returns %}
+  <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+      <div style="min-width:0;">
+        <div style="font-weight:600;font-size:13px;">{{ r.obj.order_item.product.name }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+          {{ r.obj.get_type_display }} &middot; Qty {{ r.obj.quantity }} &middot; {{ r.obj.get_reason_display }}{% if r.obj.type == 'return' %} &middot; Refund ${{ r.obj.refund_amount }}{% endif %}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Raised by {{ r.obj.buyer.email }} &middot; {{ r.obj.created_at|timesince }} ago</div>
+      </div>
+      <span class="pill {{ r.obj.status }}">{{ r.obj.get_status_display }}</span>
+    </div>
+    {% if r.obj.reason_note %}<div style="font-size:12px;color:var(--text);background:var(--surface-2);padding:5px 10px;border-radius:var(--radius-sm);margin-top:6px;">&ldquo;{{ r.obj.reason_note }}&rdquo;</div>{% endif %}
+    {% if r.actions %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      {% for a in r.actions %}
+      <form method="post" action="{% url 'return_transition' order.id r.obj.id %}" style="margin:0;">
+        {% csrf_token %}
+        <input type="hidden" name="status" value="{{ a.status }}">
+        <button type="submit" class="btn btn-sm {% if a.status == 'rejected' %}btn-danger{% else %}btn-primary{% endif %}">{{ a.label }}</button>
+      </form>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if activity_logs %}
 <div class="od-info-card" style="margin-bottom:var(--space-3);">
   <div class="od-info-title">

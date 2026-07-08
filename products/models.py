@@ -37,6 +37,13 @@ class Product(models.Model):
     attributes = models.JSONField(default=dict, blank=True)
     inventory_count = models.IntegerField(default=0)
     min_order_qty = models.PositiveIntegerField(default=1)
+    # ── Return / exchange policy (seller-set during add/edit) ──────────
+    # When `is_returnable` is True the storefront shows a returns badge and
+    # buyers may raise a return within `return_window_days` of delivery.
+    is_returnable = models.BooleanField(default=True)
+    return_window_days = models.PositiveIntegerField(default=7)
+    is_exchangeable = models.BooleanField(default=True)
+    return_policy_note = models.TextField(blank=True, default="")
     # Primary listing image. Stored via DEFAULT_FILE_STORAGE — local
     # filesystem in dev, Cloudinary in prod (set CLOUDINARY_URL +
     # cloudinary_storage backend to swap; no code changes needed).

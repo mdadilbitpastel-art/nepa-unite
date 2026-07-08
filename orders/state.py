@@ -1,7 +1,10 @@
 """Order status state machine.
 
-Each non-terminal state can transition to `cancelled`. Otherwise only the
-explicitly-listed forward transitions are allowed.
+An order may be cancelled only up to (and including) `shipped` — i.e. any time
+*before* it is delivered. Once it reaches `delivered`, cancellation is no longer
+possible; the buyer's recourse is the return/exchange flow (see
+orders/returns_state.py), and the order can only move on to `closed`. Otherwise
+only the explicitly-listed forward transitions are allowed.
 """
 
 from __future__ import annotations
@@ -14,7 +17,8 @@ TRANSITIONS: dict[str, set[str]] = {
     Order.Status.CONFIRMED: {Order.Status.FULFILLMENT, Order.Status.CANCELLED},
     Order.Status.FULFILLMENT: {Order.Status.SHIPPED, Order.Status.CANCELLED},
     Order.Status.SHIPPED: {Order.Status.DELIVERED, Order.Status.CANCELLED},
-    Order.Status.DELIVERED: {Order.Status.CLOSED, Order.Status.CANCELLED},
+    # Delivered is past the point of no cancel — only forward to closed.
+    Order.Status.DELIVERED: {Order.Status.CLOSED},
     Order.Status.CLOSED: set(),
     Order.Status.CANCELLED: set(),
 }

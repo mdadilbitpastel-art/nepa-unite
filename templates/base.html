@@ -475,6 +475,15 @@
     .pill.failed      { color: #dc2626; border-color: #dc2626; }
     .pill.refunded    { color: #d97706; border-color: #d97706; }
     .pill.disputed    { color: #b91c1c; border-color: #b91c1c; }
+    /* Return / exchange lifecycle statuses (surfaced on delivered orders) */
+    .pill.requested        { color: #c026d3; border-color: #c026d3; }
+    .pill.approved         { color: #2563eb; border-color: #2563eb; }
+    .pill.rejected         { color: #991b1b; border-color: #991b1b; }
+    .pill.pickup_scheduled { color: #2563eb; border-color: #2563eb; }
+    .pill.picked_up        { color: #7c3aed; border-color: #7c3aed; }
+    .pill.received         { color: #ca8a04; border-color: #ca8a04; }
+    .pill.exchange_shipped { color: #7c3aed; border-color: #7c3aed; }
+    .pill.exchange_completed { color: #16a34a; border-color: #16a34a; }
     /* Role badges */
     .pill.role-admin  { color: #0c2340; border-color: #0c2340; }
     .pill.role-buyer  { color: #0891b2; border-color: #0891b2; }
@@ -502,6 +511,15 @@
     [data-theme="dark"] .pill.refunded  { color: #fbbf24; border-color: #fbbf24; }
     [data-theme="dark"] .pill.role-admin { color: #93a4ff; border-color: #93a4ff; }
     [data-theme="dark"] .pill.role-buyer { color: #22d3ee; border-color: #22d3ee; }
+    /* Return / exchange lifecycle — dark mode */
+    [data-theme="dark"] .pill.rejected  { color: #ef4444; border-color: #ef4444; }
+    [data-theme="dark"] .pill.requested { color: #e879f9; border-color: #e879f9; }
+    [data-theme="dark"] .pill.approved,
+    [data-theme="dark"] .pill.pickup_scheduled { color: #60a5fa; border-color: #60a5fa; }
+    [data-theme="dark"] .pill.picked_up,
+    [data-theme="dark"] .pill.exchange_shipped { color: #a78bfa; border-color: #a78bfa; }
+    [data-theme="dark"] .pill.received  { color: #eab308; border-color: #eab308; }
+    [data-theme="dark"] .pill.exchange_completed { color: #4ade80; border-color: #4ade80; }
 
     /* ============================================================
        Pagination
