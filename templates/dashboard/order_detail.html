@@ -77,11 +77,18 @@
   }
   .od-step.done .od-dot { background:#10b981;border-color:#10b981;color:#fff; }
   .od-step.current .od-dot { background:var(--accent);border-color:var(--accent);color:#1a1208;box-shadow:0 0 0 3px rgba(212,161,85,.22); }
+  .od-step.rejected .od-dot { background:#dc2626;border-color:#dc2626;color:#fff; }
   .od-step-label { margin-top:4px;font-size:10px;font-weight:600;color:var(--text-subtle);text-align:center;text-transform:uppercase;letter-spacing:.3px; }
   .od-step.done .od-step-label { color:#10b981; }
   .od-step.current .od-step-label { color:var(--accent); }
+  .od-step.rejected .od-step-label { color:#dc2626; }
+  /* A return/exchange leg of the timeline reads a touch differently from the
+     core order steps — a dashed connector marks where returns begin. */
+  .od-step.ret .od-step-label { text-transform:none;letter-spacing:0; }
   .od-conn { flex:1;height:2px;background:var(--border);margin-top:13px;min-width:12px; }
   .od-conn.done { background:#10b981; }
+  .od-conn.ret { background-image:linear-gradient(to right,var(--border) 50%,transparent 50%);background-size:8px 2px;background-repeat:repeat-x;background-color:transparent; }
+  .od-conn.ret.done { background-image:linear-gradient(to right,#10b981 50%,transparent 50%); }
 
   .od-actions-bar {
     display:flex;gap:8px;flex-wrap:wrap;
@@ -218,11 +225,12 @@
 <div class="od-timeline-card">
   <div class="od-timeline">
     {% for step in timeline %}
-      {% if not forloop.first %}<div class="od-conn {% if step.state == 'done' %}done{% endif %}"></div>{% endif %}
-      <div class="od-step {{ step.state }}">
+      {% if not forloop.first %}<div class="od-conn{% if step.ret %} ret{% endif %}{% if step.state == 'done' %} done{% endif %}"></div>{% endif %}
+      <div class="od-step {{ step.state }}{% if step.ret %} ret{% endif %}">
         <div class="od-dot">
           {% if step.state == 'done' %}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           {% elif step.state == 'current' %}<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+          {% elif step.state == 'rejected' %}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           {% else %}<span style="width:5px;height:5px;border-radius:50%;background:var(--border-strong);display:block;"></span>{% endif %}
         </div>
         <div class="od-step-label">{{ step.label }}</div>

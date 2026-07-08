@@ -60,7 +60,12 @@ services:
 
   worker:
     build: .
-    command: celery -A nepa_unite worker --loglevel=info
+    # `--beat` embeds the periodic scheduler in this single dev worker so
+    # scheduled jobs (e.g. auto-closing delivered orders once their return/
+    # exchange window elapses) actually fire. The schedule DB is written to
+    # /tmp so it never lands in the mounted source tree. For a multi-worker
+    # prod deploy, run `celery -A nepa_unite beat` as its own process instead.
+    command: celery -A nepa_unite worker --beat -s /tmp/celerybeat-schedule --loglevel=info
     env_file:
       - .env
     environment:

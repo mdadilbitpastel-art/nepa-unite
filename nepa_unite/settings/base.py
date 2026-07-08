@@ -170,7 +170,9 @@ from celery.schedules import crontab  # noqa: E402
 CELERY_BEAT_SCHEDULE = {
     "close-expired-return-windows": {
         "task": "orders.tasks.close_expired_return_windows",
-        "schedule": crontab(hour=2, minute=0),  # daily at 02:00 UTC
+        # Hourly, so a delivered order auto-closes within ~an hour of its
+        # return/exchange window elapsing rather than waiting for a daily run.
+        "schedule": crontab(minute=0),  # top of every hour
     },
 }
 

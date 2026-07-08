@@ -1559,26 +1559,92 @@ def order_detail_view(request, order_id):
     items = order.items.select_related("product", "seller", "seller__tenant").order_by("product__name")
 
     from orders.state import TRANSITIONS
-    allowed = TRANSITIONS.get(order.status, set()) - {Order.Status.CANCELLED}
+    # Cancel is offered via its own button; Closed is never a manual action —
+    # a delivered order auto-closes once its return/exchange window elapses
+    # (orders.tasks.close_expired_return_windows / lazy close on read).
+    allowed = TRANSITIONS.get(order.status, set()) - {
+        Order.Status.CANCELLED, Order.Status.CLOSED,
+    }
 
-    STATUS_ORDER = [
-        Order.Status.DRAFT,
-        Order.Status.CONFIRMED,
-        Order.Status.FULFILLMENT,
-        Order.Status.SHIPPED,
-        Order.Status.DELIVERED,
-        Order.Status.CLOSED,
+    # Progress timeline: the core order lifecycle up to Delivered, then — once a
+    # return/exchange has been raised — that request's steps, and finally Closed.
+    # So a returned order reads Delivered → Requested → … → Refunded → Closed.
+    from orders.models import ReturnRequest as _RRq
+    from orders.returns_service import relevant_return_for_order
+
+    BASE_ORDER = [
+        Order.Status.DRAFT, Order.Status.CONFIRMED, Order.Status.FULFILLMENT,
+        Order.Status.SHIPPED, Order.Status.DELIVERED,
     ]
+    _RS = _RRq.Status
+    _RET_STEP_LABEL = {
+        _RS.REQUESTED: "Requested", _RS.APPROVED: "Approved",
+        _RS.PICKUP_SCHEDULED: "Pickup scheduled", _RS.PICKED_UP: "Picked up",
+        _RS.RECEIVED: "Received", _RS.REFUNDED: "Refunded",
+        _RS.EXCHANGE_SHIPPED: "Replacement shipped",
+        _RS.EXCHANGE_COMPLETED: "Exchange completed",
+    }
+    _RETURN_FLOW = [_RS.REQUESTED, _RS.APPROVED, _RS.PICKUP_SCHEDULED,
+                    _RS.PICKED_UP, _RS.RECEIVED, _RS.REFUNDED]
+    _EXCHANGE_FLOW = [_RS.REQUESTED, _RS.APPROVED, _RS.PICKUP_SCHEDULED,
+                      _RS.PICKED_UP, _RS.RECEIVED, _RS.EXCHANGE_SHIPPED,
+                      _RS.EXCHANGE_COMPLETED]
+
+    _is_closed = order.status == Order.Status.CLOSED
+    _rr_tl = (
+        relevant_return_for_order(order)
+        if order.status in (Order.Status.DELIVERED, Order.Status.CLOSED)
+        else None
+    )
+    _ret_active = _rr_tl is not None and _rr_tl.status not in (
+        _RS.REJECTED, _RS.CANCELLED
+    )
+    _ret_rejected = _rr_tl is not None and _rr_tl.status == _RS.REJECTED
+
+    if order.status == Order.Status.CANCELLED:
+        order_idx = -1
+    elif order.status in BASE_ORDER:
+        order_idx = BASE_ORDER.index(order.status)
+    else:  # closed
+        order_idx = len(BASE_ORDER)
+
     timeline = []
-    current_idx = STATUS_ORDER.index(order.status) if order.status in STATUS_ORDER else -1
-    for i, s in enumerate(STATUS_ORDER):
-        if i < current_idx:
+    for i, s in enumerate(BASE_ORDER):
+        if _is_closed or _rr_tl is not None:
+            state = "done"          # delivery reached; any current marker is on the return leg
+        elif i < order_idx:
             state = "done"
-        elif i == current_idx:
+        elif i == order_idx:
             state = "current"
         else:
             state = "upcoming"
-        timeline.append({"status": s, "label": dict(Order.Status.choices).get(s, s), "state": state})
+        timeline.append({"label": dict(Order.Status.choices).get(s, s), "state": state})
+
+    if _ret_active:
+        _flow = _EXCHANGE_FLOW if _rr_tl.type == _RRq.Type.EXCHANGE else _RETURN_FLOW
+        _type_label = _rr_tl.get_type_display()
+        _ret_idx = _flow.index(_rr_tl.status) if _rr_tl.status in _flow else -1
+        for j, rs in enumerate(_flow):
+            if _is_closed or j < _ret_idx:
+                state = "done"
+            elif j == _ret_idx:
+                state = "current"
+            else:
+                state = "upcoming"
+            base = _RET_STEP_LABEL.get(rs, rs)
+            label = f"{_type_label} {base.lower()}" if rs == _RS.REQUESTED else base
+            timeline.append({"label": label, "state": state, "ret": True})
+    elif _ret_rejected:
+        timeline.append({
+            "label": f"{_rr_tl.get_type_display()} rejected",
+            "state": "rejected", "ret": True,
+        })
+
+    # Closed always terminates the timeline, after any return/exchange steps.
+    timeline.append({
+        "label": dict(Order.Status.choices).get(Order.Status.CLOSED, "Closed"),
+        "state": "done" if _is_closed else "upcoming",
+    })
 
     can_cancel = Order.Status.CANCELLED in TRANSITIONS.get(order.status, set())
     activity_logs = order.activity_logs.select_related("actor")
