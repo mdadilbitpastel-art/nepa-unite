@@ -115,6 +115,23 @@ def earn_for_order(order) -> int:
     )
 
 
+def reverse_for_item(order_item) -> int:
+    """Reverse the commission on a single order item (e.g. it was refunded).
+
+    Used when a return is refunded during the window so the admin never earns
+    commission on that item when the order later closes. Idempotent.
+    """
+    return (
+        Commission.objects.filter(order_item=order_item)
+        .exclude(status=Commission.Status.REVERSED)
+        .update(
+            status=Commission.Status.REVERSED,
+            reversed_at=timezone.now(),
+            updated_at=timezone.now(),
+        )
+    )
+
+
 def reverse_for_order(order) -> int:
     """Reverse all non-reversed commissions for an order (cancel / refund)."""
     return (

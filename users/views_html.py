@@ -1710,19 +1710,23 @@ def order_detail_view(request, order_id):
             nexts -= {_RET.EXCHANGE_SHIPPED, _RET.EXCHANGE_COMPLETED}
         else:
             nexts -= {_RET.REFUNDED}
+        # NB: keep this in its own variable — reusing `allowed` here would
+        # clobber the order-level transitions computed above and make the order
+        # action bar render return statuses (Approve/Reject/Cancel) a second
+        # time, outside the Returns box.
         if user.role == CustomUser.Role.ADMIN:
-            allowed = nexts
+            ret_allowed = nexts
         elif user.role == CustomUser.Role.SELLER:
-            allowed = nexts & _SELLER_RET_ACTIONS
+            ret_allowed = nexts & _SELLER_RET_ACTIONS
         elif user.role == CustomUser.Role.BUYER and r.buyer_id == user.id:
-            allowed = nexts & _BUYER_RET_ACTIONS
+            ret_allowed = nexts & _BUYER_RET_ACTIONS
         else:
-            allowed = set()
+            ret_allowed = set()
         returns.append({
             "obj": r,
             "actions": [
                 {"status": s, "label": _RET_ACTION_LABEL.get(s, s)}
-                for s in sorted(allowed)
+                for s in sorted(ret_allowed)
             ],
         })
 

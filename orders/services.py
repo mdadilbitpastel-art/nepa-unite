@@ -145,11 +145,15 @@ def transition_order(*, order: Order, target_status: str, actor, note: str = "")
             fulfillment_status=OrderItem.FulfillmentStatus.PENDING
         ).update(fulfillment_status=OrderItem.FulfillmentStatus.FULFILLED)
 
-    # Commission ledger follows the order lifecycle: realized once delivered,
-    # reversed if the order is cancelled. Both calls are idempotent and no-op
-    # when no commission was accrued (e.g. cancelled before payment).
+    # Commission (the admin's cut) is realized only when the order finally
+    # CLOSES — i.e. after delivery once the return/exchange window has elapsed
+    # (auto-close). Earning it at delivery would book commission the platform
+    # might have to claw back on a return; any item refunded during the window
+    # has its commission reversed by then (see returns_service), so earning the
+    # still-PENDING remainder at close is correct. Cancel reverses everything.
+    # All calls are idempotent and no-op when nothing was accrued.
     from commissions.services import earn_for_order, reverse_for_order
-    if target_status == Order.Status.DELIVERED:
+    if target_status == Order.Status.CLOSED:
         earn_for_order(order)
     elif target_status == Order.Status.CANCELLED:
         reverse_for_order(order)

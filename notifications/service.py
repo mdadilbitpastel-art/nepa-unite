@@ -2,8 +2,29 @@
 
 from __future__ import annotations
 
+from django.conf import settings
+
 from notifications.models import Notification
 from notifications.tasks import send_ses_email
+
+
+def _dispatch_email(*, to_email: str, subject: str, body: str) -> None:
+    """Send the SES email without ever blocking the request.
+
+    With a real Celery worker ``.delay()`` is already async. On single-service
+    deploys (no worker → eager mode) ``.delay()`` would run the SES call
+    synchronously inside the request, making actions like raising or approving a
+    return feel slow/stuck. In that case we push it onto a background thread so
+    the HTTP response returns immediately and the UI updates without a reload.
+    """
+    if settings.CELERY_TASK_ALWAYS_EAGER:
+        from core.dispatch import run_in_background
+
+        run_in_background(
+            send_ses_email.delay, to_email=to_email, subject=subject, body=body
+        )
+    else:
+        send_ses_email.delay(to_email=to_email, subject=subject, body=body)
 
 
 def notify(
@@ -17,7 +38,7 @@ def notify(
 ) -> Notification:
     """Persist an in-app notification and optionally send an email.
 
-    Email goes via SES (Celery), so the caller's request stays fast.
+    Email goes via SES off the request path, so the caller's request stays fast.
     """
     note = Notification.objects.create(
         recipient=recipient,
@@ -27,11 +48,7 @@ def notify(
         payload=payload or {},
     )
     if send_email and recipient.email:
-        send_ses_email.delay(
-            to_email=recipient.email,
-            subject=title,
-            body=body or title,
-        )
+        _dispatch_email(to_email=recipient.email, subject=title, body=body or title)
     return note
 
 

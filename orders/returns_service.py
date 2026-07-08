@@ -258,6 +258,13 @@ def transition_return(
             release_inventory(str(rr.order_item.product_id), rr.quantity)
         except Exception:  # noqa: BLE001
             pass
+        # The admin earns no commission on a refunded item — reverse it now so
+        # it isn't picked up when the order later closes.
+        try:
+            from commissions.services import reverse_for_item
+            reverse_for_item(rr.order_item)
+        except Exception:  # noqa: BLE001
+            pass
 
     if target_status == S.EXCHANGE_SHIPPED:
         # Restock the returned unit, reserve the replacement.

@@ -111,14 +111,29 @@ def test_reverse_marks_reversed(db, order):
     assert comm.reversed_at is not None
 
 
-def test_transition_to_delivered_earns_commission(db, order, admin_user):
-    """End-to-end through the order state machine."""
+def test_commission_earned_on_close_not_delivery(db, order, admin_user):
+    """Commission is realized only when the order CLOSES (after the return
+    window), not at delivery — end-to-end through the order state machine."""
     from orders.services import transition_order
     services.accrue_for_order(order)
     order.status = Order.Status.SHIPPED
     order.save(update_fields=["status"])
     transition_order(order=order, target_status=Order.Status.DELIVERED, actor=admin_user)
+    # Still pending during the return/exchange window.
+    assert Commission.objects.get(order=order).status == Commission.Status.PENDING
+    transition_order(order=order, target_status=Order.Status.CLOSED, actor=admin_user)
     assert Commission.objects.get(order=order).status == Commission.Status.EARNED
+
+
+def test_reverse_for_item_reverses_single_commission(db, order):
+    """A refunded item's commission is reversed so it never earns at close."""
+    services.accrue_for_order(order)
+    item = order.items.first()
+    updated = services.reverse_for_item(item)
+    assert updated == 1
+    comm = Commission.objects.get(order_item=item)
+    assert comm.status == Commission.Status.REVERSED
+    assert comm.reversed_at is not None
 
 
 # ---------------------------------------------------------------------------
